@@ -63,6 +63,7 @@ var canvas=document.getElementById("sky"), ctx=canvas.getContext("2d");
 var dpr=Math.max(1,window.devicePixelRatio||1);
 var cam={x:0,y:0,s:1};
 var graph=null, nodes=[], edges=[], byNum={}, selected=null;
+var clock=0, T0=(window.performance&&performance.now?performance.now():Date.now()), camTarget=null;
 
 var COL={
   resolved:{core:"#b9c9e0",glow:"#5d76ad",r:6,gr:26},
@@ -79,7 +80,8 @@ function clamp(v,a,b){return v<a?a:(v>b?b:v);}
 function pad2(n){return (n<10?"0":"")+n;}
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};}
 function hexA(hex,al){var h=hex.replace("#","");var r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);return "rgba("+r+","+g+","+b+","+al+")";}
-function w2s(n){return {x:n.x*cam.s+cam.x,y:n.y*cam.s+cam.y};}
+// w2s maps a node's DISPLAY position (base + idle bob, set each frame) to screen.
+function w2s(n){var x=(n._x!=null?n._x:n.x), y=(n._y!=null?n._y:n.y);return {x:x*cam.s+cam.x,y:y*cam.s+cam.y};}
 
 // --- deterministic rank-biased force layout --------------------------------
 function ringR(rank){return 130+rank*165;}
@@ -159,19 +161,30 @@ function drawStars(W,H){
 // a glance: from --> to means "from unblocks to".
 function drawEdge(e){
   var a=byNum[e.from], b=byNum[e.to]; if(!a||!b)return;
-  var mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy)||1;
+  var ax=a._x, ay=a._y, bx=b._x, by=b._y;
+  var mx=(ax+bx)/2, my=(ay+by)/2, dx=bx-ax, dy=by-ay, len=Math.hypot(dx,dy)||1;
   var nx=-dy/len, ny=dx/len, bow=Math.min(46,len*0.13);
   var cx=mx+nx*bow, cy=my+ny*bow;
-  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(cx,cy,b.x,b.y);
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.quadraticCurveTo(cx,cy,bx,by);
   if(e.satisfied){ctx.strokeStyle="rgba(150,180,155,0.5)";ctx.lineWidth=1.6;ctx.setLineDash([]);}
   else{ctx.strokeStyle="rgba(120,132,152,0.22)";ctx.lineWidth=1.2;ctx.setLineDash([4,6]);}
   ctx.stroke(); ctx.setLineDash([]);
+  // Flow particles: on a SATISFIED edge, motes drift blocker->dependent, reading
+  // as energy having unlocked the next step. Staggered phases, dim at the ends.
+  if(e.satisfied){
+    for(var k=0;k<3;k++){
+      var u=mod(clock*0.14 + k/3 + (e.from*0.13+e.to*0.07), 1);
+      var m=1-u, fx=m*m*ax+2*m*u*cx+u*u*bx, fy=m*m*ay+2*m*u*cy+u*u*by;
+      ctx.fillStyle="rgba(190,225,200,"+(0.16+0.44*Math.sin(u*Math.PI))+")";
+      ctx.beginPath(); ctx.arc(fx,fy,1.7,0,6.2831853); ctx.fill();
+    }
+  }
   // Arrowhead at the curve MIDPOINT, pointing blocker->dependent, so direction
   // reads without crowding either vertex. For a quadratic Bezier the midpoint is
   // B(0.5)=0.25a+0.5c+0.25b and its tangent is simply b-a. The triangle is
   // centred on that point (tip half a length ahead, base half behind).
-  var midx=0.25*a.x+0.5*cx+0.25*b.x, midy=0.25*a.y+0.5*cy+0.25*b.y;
-  var adx=b.x-a.x, ady=b.y-a.y, al=Math.hypot(adx,ady)||1, ux=adx/al, uy=ady/al;
+  var midx=0.25*ax+0.5*cx+0.25*bx, midy=0.25*ay+0.5*cy+0.25*by;
+  var adx=bx-ax, ady=by-ay, al=Math.hypot(adx,ady)||1, ux=adx/al, uy=ady/al;
   var ah=7, aw=3.8, px=-uy, py=ux;
   var tipx=midx+ux*(ah*0.5), tipy=midy+uy*(ah*0.5);
   ctx.beginPath();
@@ -186,13 +199,19 @@ function drawEdge(e){
   ctx.fill();
 }
 function drawNode(n){
-  var c=col(n);
-  var g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,c.gr);
-  g.addColorStop(0,hexA(c.glow,0.85)); g.addColorStop(0.4,hexA(c.glow,0.22)); g.addColorStop(1,hexA(c.glow,0));
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(n.x,n.y,c.gr,0,6.2831853); ctx.fill();
-  ctx.fillStyle=c.core; ctx.beginPath(); ctx.arc(n.x,n.y,c.r,0,6.2831853); ctx.fill();
-  if(n.status==="frontier"){ctx.strokeStyle=hexA("#ffd873",0.55);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(n.x,n.y,c.r+6,0,6.2831853);ctx.stroke();}
-  if(selected===n){ctx.strokeStyle="rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(n.x,n.y,c.r+11,0,6.2831853);ctx.stroke();}
+  var c=col(n), x=n._x, y=n._y;
+  // Frontier stars breathe: glow and ring pulse gently so the eye is drawn to
+  // what is takeable now.
+  var isF=n.status==="frontier";
+  var beat=0.5+0.5*Math.sin(clock*2.8);
+  var pulse=isF?(0.8+0.2*beat):1;
+  var gr=isF?c.gr*(0.92+0.16*beat):c.gr;
+  var g=ctx.createRadialGradient(x,y,0,x,y,gr);
+  g.addColorStop(0,hexA(c.glow,0.85*pulse)); g.addColorStop(0.4,hexA(c.glow,0.22*pulse)); g.addColorStop(1,hexA(c.glow,0));
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,gr,0,6.2831853); ctx.fill();
+  ctx.fillStyle=c.core; ctx.beginPath(); ctx.arc(x,y,c.r,0,6.2831853); ctx.fill();
+  if(isF){ctx.strokeStyle=hexA("#ffd873",0.4+0.3*beat);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,c.r+6+1.5*beat,0,6.2831853);ctx.stroke();}
+  if(selected===n){ctx.strokeStyle="rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,c.r+11,0,6.2831853);ctx.stroke();}
 }
 function drawLabels(){
   if(cam.s<0.22)return;               // very far out: no text at all
@@ -211,6 +230,14 @@ function drawLabels(){
 }
 function render(){
   var W=innerWidth,H=innerHeight;
+  clock=((window.performance&&performance.now?performance.now():Date.now())-T0)/1000;
+  // Idle bob: a tiny per-node drift, phased by ticket number. Edges, labels and
+  // hit-testing all read _x/_y, so nothing detaches from a bobbing star.
+  for(var i=0;i<nodes.length;i++){var n=nodes[i], ph=n.num*1.7;
+    n._x=n.x+Math.sin(clock*0.7+ph)*2.4; n._y=n.y+Math.cos(clock*0.55+ph)*2.4;}
+  // Camera easing toward a selected star; cancelled by any manual pan/zoom.
+  if(camTarget){cam.x+=(camTarget.x-cam.x)*0.16; cam.y+=(camTarget.y-cam.y)*0.16;
+    if(Math.abs(camTarget.x-cam.x)<0.4&&Math.abs(camTarget.y-cam.y)<0.4){cam.x=camTarget.x;cam.y=camTarget.y;camTarget=null;}}
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle="#05070d"; ctx.fillRect(0,0,W,H);
   drawStars(W,H);
@@ -248,6 +275,9 @@ function blockedCount(){var n=0;nodes.forEach(function(x){if(x.status==="blocked
 function openPanel(n){
   selected=n;
   var p=document.getElementById("panel");
+  // Ease the camera so the star sits centred in the space left of the panel.
+  var pw=p.offsetWidth||0, vx=(innerWidth-pw)/2, vy=innerHeight/2;
+  camTarget={x:vx-n.x*cam.s, y:vy-n.y*cam.s};
   var h=p.querySelector("h2"); h.innerHTML=""; h.appendChild(el("span","num",pad2(n.num))); h.appendChild(document.createTextNode(n.title));
   var meta=p.querySelector(".meta"); meta.innerHTML="";
   meta.appendChild(el("span","c "+(n.status==="out_of_scope"?"oos":n.status), n.status.replace(/_/g," ")));
@@ -265,7 +295,7 @@ document.querySelector("#panel .x").onclick=closePanel;
 
 // --- camera interaction ----------------------------------------------------
 var down=false, moved=0, last={x:0,y:0};
-canvas.addEventListener("mousedown",function(ev){down=true;moved=0;last={x:ev.clientX,y:ev.clientY};canvas.classList.add("drag");});
+canvas.addEventListener("mousedown",function(ev){down=true;moved=0;camTarget=null;last={x:ev.clientX,y:ev.clientY};canvas.classList.add("drag");});
 window.addEventListener("mousemove",function(ev){
   if(!down)return; var dx=ev.clientX-last.x, dy=ev.clientY-last.y;
   cam.x+=dx; cam.y+=dy; moved+=Math.abs(dx)+Math.abs(dy); last={x:ev.clientX,y:ev.clientY};
@@ -275,7 +305,7 @@ window.addEventListener("mouseup",function(ev){
   if(moved<5)hitTest(ev.clientX,ev.clientY);
 });
 canvas.addEventListener("wheel",function(ev){
-  ev.preventDefault();
+  ev.preventDefault(); camTarget=null;
   var f=Math.exp(-ev.deltaY*0.0012); var ns=clamp(cam.s*f,0.15,4);
   var wx=(ev.clientX-cam.x)/cam.s, wy=(ev.clientY-cam.y)/cam.s;
   cam.s=ns; cam.x=ev.clientX-wx*ns; cam.y=ev.clientY-wy*ns;
@@ -294,7 +324,7 @@ resize(); initStars();
 fetch("graph.json").then(function(r){return r.json();}).then(function(g){
   graph=g; nodes=(g.nodes||[]).slice().sort(function(a,b){return a.num-b.num;});
   edges=g.edges||[]; byNum={}; nodes.forEach(function(n){byNum[n.num]=n;});
-  layout(); fitCamera(); buildHud(); render();
+  layout(); nodes.forEach(function(n){n._x=n.x;n._y=n.y;}); fitCamera(); buildHud(); render();
 }).catch(function(err){
   document.getElementById("hud").innerHTML="<h1>Couldn't load graph.json</h1><div class=dest>"+String(err)+"</div>";
   render();
