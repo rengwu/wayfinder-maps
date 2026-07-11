@@ -46,16 +46,33 @@ const shellHTML = `<!doctype html>
   #panel h2{font-size:17px;margin:2px 0 10px;padding-right:24px}
   #panel h2 .num{color:#8b93a3;font-variant-numeric:tabular-nums;font-weight:700;margin-right:6px}
   #panel .meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-  #panel pre{flex:1;overflow:auto;margin:0;white-space:pre-wrap;word-wrap:break-word;
-    font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfd4de;
-    border-top:1px solid #262b36;padding-top:14px}
+  #panel .md{flex:1;overflow:auto;border-top:1px solid #262b36;padding-top:14px;font-size:13px;line-height:1.65;color:#cfd4de}
+  #panel .md>*:first-child{margin-top:0}
+  #panel .md h1,#panel .md h2,#panel .md h3,#panel .md h4{color:#e6e9ef;line-height:1.3;margin:16px 0 8px}
+  #panel .md h1{font-size:16px}
+  #panel .md h2{font-size:14px;border-bottom:1px solid #20242e;padding-bottom:4px}
+  #panel .md h3{font-size:13px;color:#b7bdc9}
+  #panel .md h4{font-size:12px;color:#9aa2b1;text-transform:uppercase;letter-spacing:.04em}
+  #panel .md p{margin:9px 0}
+  #panel .md ul,#panel .md ol{margin:9px 0;padding-left:20px}
+  #panel .md li{margin:3px 0}
+  #panel .md code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+    background:#20242e;padding:1px 5px;border-radius:4px;color:#d6c6a0}
+  #panel .md pre{background:#0c0f15;border:1px solid #20242e;border-radius:8px;padding:12px;overflow-x:auto;margin:10px 0}
+  #panel .md pre code{background:none;padding:0;color:#c8cfda;font-size:12px;line-height:1.5;white-space:pre}
+  #panel .md a,#panel .md .xlink{color:#7fa8ff;text-decoration:none;cursor:pointer}
+  #panel .md a:hover,#panel .md .xlink:hover{text-decoration:underline}
+  #panel .md strong{color:#e6e9ef;font-weight:700}
+  #panel .md em{color:#d3b98a;font-style:italic}
+  #panel .md hr{border:none;border-top:1px solid #262b36;margin:14px 0}
+  #panel .md blockquote{border-left:3px solid #3a4150;margin:9px 0;padding:2px 0 2px 12px;color:#9aa2b1}
   #hint{position:fixed;bottom:14px;left:16px;z-index:5;font-size:11px;color:#4b5261}
 </style>
 </head>
 <body>
 <canvas id="sky"></canvas>
 <div id="hud"></div>
-<div id="panel"><span class="x">&times;</span><h2></h2><div class="meta"></div><pre></pre></div>
+<div id="panel"><span class="x">&times;</span><h2></h2><div class="meta"></div><div class="md"></div></div>
 <div id="hint">drag to pan &middot; scroll to zoom &middot; click a star</div>
 <script>
 "use strict";
@@ -308,6 +325,61 @@ function render(){
 
 // --- hud & panel -----------------------------------------------------------
 function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+
+// --- a small markdown renderer for the detail panel ------------------------
+// No dependency, no build step. HTML is escaped first, then a line-based block
+// pass (fences, headings, lists, hr, blockquotes, paragraphs) wraps it, and an
+// inline pass handles code / links / bold / italic. Code fences are detected
+// via charCode 96 because a literal backtick would close this Go raw string.
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function mdFmt(t){
+  t=t.replace(/\[([^\]]+)\]\(([^)]+)\)/g,function(m,txt,url){
+    if(/^https?:\/\//.test(url))return "<a href='"+url+"' target='_blank' rel='noopener'>"+txt+"</a>";
+    var tm=url.match(/(?:^|\/)0*(\d+)-[^/)]*\.md/);
+    if(tm)return "<a class='xlink' data-goto='"+tm[1]+"'>"+txt+"</a>";
+    return "<span class='xlink'>"+txt+"</span>";
+  });
+  t=t.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  t=t.replace(/\*([^*\n]+)\*/g,"<em>$1</em>");
+  return t;
+}
+// Protect code spans as placeholders before emphasis, so bold can WRAP an
+// inline-code span, and a * inside code (Go pointer types) is never italicised.
+function mdInline(s){
+  var BT=String.fromCharCode(96), codes=[];
+  s=s.replace(new RegExp(BT+"([^"+BT+"]+)"+BT,"g"),function(m,c){codes.push(c);return "\x00"+(codes.length-1)+"\x00";});
+  s=mdFmt(s);
+  return s.replace(/\x00(\d+)\x00/g,function(m,i){return "<code>"+codes[i]+"</code>";});
+}
+function mdToHtml(src){
+  if(!src)return "<p class='muted'>(no body)</p>";
+  var BT=String.fromCharCode(96), FENCE=BT+BT+BT;
+  var lines=src.split("\n"), out=[], para=[], list=null, inCode=false, code=[];
+  function fp(){if(para.length){out.push("<p>"+mdInline(esc(para.join(" ")))+"</p>");para=[];}}
+  function fl(){if(list){out.push("</"+list+">");list=null;}}
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i], t=line.replace(/^\s+/,"");
+    if(t.indexOf(FENCE)===0){
+      if(inCode){out.push("<pre><code>"+esc(code.join("\n"))+"</code></pre>");inCode=false;code=[];}
+      else{fp();fl();inCode=true;code=[];}
+      continue;
+    }
+    if(inCode){code.push(line);continue;}
+    if(t===""){fp();fl();continue;}
+    var h=t.match(/^(#{1,6})\s+(.*)$/);
+    if(h){fp();fl();var lv=h[1].length;out.push("<h"+lv+">"+mdInline(esc(h[2]))+"</h"+lv+">");continue;}
+    if(/^(---+|\*\*\*+|___+)$/.test(t)){fp();fl();out.push("<hr>");continue;}
+    var li=t.match(/^([-*+]|\d+\.)\s+(.*)$/);
+    if(li){fp();var ty=/\d/.test(li[1])?"ol":"ul";if(list&&list!==ty)fl();if(!list){out.push("<"+ty+">");list=ty;}out.push("<li>"+mdInline(esc(li[2]))+"</li>");continue;}
+    var bq=t.match(/^>\s?(.*)$/);
+    if(bq){fp();fl();out.push("<blockquote>"+mdInline(esc(bq[1]))+"</blockquote>");continue;}
+    if(list)fl();
+    para.push(t);
+  }
+  if(inCode)out.push("<pre><code>"+esc(code.join("\n"))+"</code></pre>");
+  fp();fl();
+  return out.join("\n");
+}
 function buildHud(){
   var hud=document.getElementById("hud"); hud.innerHTML="";
   hud.appendChild(el("h1",null,graph.name));
@@ -345,11 +417,16 @@ function openPanel(n){
     meta.appendChild(el("span","c "+(ok?"resolved":"blocked"),"blocked by "+pad2(b)));
   });
   if(n.undermined)meta.appendChild(el("span","c blocked","undermined"));
-  p.querySelector("pre").textContent=n.body||"(no body)";
+  p.querySelector(".md").innerHTML=mdToHtml(n.body);
   p.classList.add("open");
 }
 function closePanel(){selected=null;document.getElementById("panel").classList.remove("open");}
 document.querySelector("#panel .x").onclick=closePanel;
+// Cross-ticket links in the rendered body jump the star-map to that node.
+document.querySelector("#panel .md").addEventListener("click",function(ev){
+  var a=ev.target.closest?ev.target.closest("[data-goto]"):null;
+  if(a){ev.preventDefault();var n=byNum[parseInt(a.getAttribute("data-goto"),10)];if(n)openPanel(n);}
+});
 
 // --- camera interaction ----------------------------------------------------
 var down=false, moved=0, last={x:0,y:0};

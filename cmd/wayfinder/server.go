@@ -189,5 +189,12 @@ func ticketBody(path string) string {
 			}
 		}
 	}
+	// Drop the leading H1 title — the panel header already shows it.
+	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
+		lines = lines[1:]
+	}
+	if len(lines) > 0 && strings.HasPrefix(strings.TrimSpace(lines[0]), "# ") {
+		lines = lines[1:]
+	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
