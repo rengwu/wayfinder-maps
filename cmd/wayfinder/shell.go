@@ -67,13 +67,71 @@ const shellHTML = `<!doctype html>
   #panel .md hr{border:none;border-top:1px solid #262b36;margin:14px 0}
   #panel .md blockquote{border-left:3px solid #3a4150;margin:9px 0;padding:2px 0 2px 12px;color:#9aa2b1}
   #hint{position:fixed;bottom:14px;left:16px;z-index:5;font-size:11px;color:#4b5261}
+  #backbtn{position:fixed;top:16px;left:16px;z-index:7;display:none;align-items:center;
+    background:rgba(14,18,26,.72);border:1px solid #262b36;border-radius:999px;color:#b7bdc9;
+    padding:7px 14px;font-size:12px;cursor:pointer;backdrop-filter:blur(8px)}
+  #backbtn:hover{color:#e6e9ef;border-color:#3a4356}
+  /* splash + map list overlays, floating over the live starfield */
+  #splash,#maplist{position:fixed;inset:0;z-index:10;display:none;
+    background:radial-gradient(80% 80% at 50% 30%,rgba(8,11,18,.6),rgba(5,7,13,.92))}
+  #splash{align-items:center;justify-content:center}
+  .splashcard{width:min(420px,90vw);text-align:center;padding:8px}
+  .logo{font-size:30px;font-weight:600;letter-spacing:.02em;color:#e6e9ef}
+  .tag{color:#8b93a3;font-size:13px;margin:6px 0 26px}
+  #openfolder{display:inline-block;background:#2b62d6;border:none;color:#fff;font-size:14px;
+    padding:11px 22px;border-radius:10px;cursor:pointer;box-shadow:0 4px 20px rgba(43,98,214,.35)}
+  #openfolder:hover{background:#356fe6}
+  .recent-h{margin:30px 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;text-align:left}
+  #recents{display:flex;flex-direction:column;gap:8px}
+  .recent{display:flex;align-items:center;justify-content:space-between;text-align:left;
+    background:rgba(23,26,33,.8);border:1px solid #262b36;border-radius:10px;padding:11px 14px;cursor:pointer;color:#e6e9ef}
+  .recent:hover{border-color:#3a4356;background:rgba(30,35,44,.9)}
+  .recent .rname{font-size:13px}
+  .recent .rmeta{font-size:11px;color:#8b93a3}
+  #maplist{flex-direction:column;padding:56px 40px 40px;overflow:auto}
+  .listtop{display:flex;align-items:flex-end;justify-content:space-between;
+    max-width:1000px;margin:0 auto 26px;width:100%}
+  .listkick{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280}
+  #projname{font-size:22px;font-weight:600;color:#e6e9ef}
+  #openanother{background:none;border:1px solid #262b36;color:#b7bdc9;border-radius:999px;padding:7px 14px;font-size:12px;cursor:pointer}
+  #openanother:hover{color:#e6e9ef;border-color:#3a4356}
+  #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;
+    max-width:1000px;margin:0 auto;width:100%}
+  .card{text-align:left;background:rgba(23,26,33,.82);border:1px solid #262b36;border-radius:14px;
+    padding:18px;cursor:pointer;transition:transform .08s,border-color .08s}
+  .card:hover{transform:translateY(-2px);border-color:#4f8cff}
+  .card .cname{font-size:15px;font-weight:600;color:#e6e9ef;line-height:1.35;margin-bottom:10px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .cmeta{display:flex;gap:10px;font-size:12px;color:#8b93a3;margin-bottom:10px}
+  .card .cfront{color:#ffd873}
+  .card .cbar{height:5px;background:#20242e;border-radius:999px;overflow:hidden}
+  .card .cbar>span{display:block;height:100%;background:linear-gradient(90deg,#6d86ad,#b9c9e0)}
 </style>
 </head>
 <body>
 <canvas id="sky"></canvas>
+<button id="backbtn">&larr; maps</button>
 <div id="hud"></div>
 <div id="panel"><span class="x">&times;</span><h2></h2><div class="meta"></div><div class="md"></div></div>
 <div id="hint">drag to pan &middot; scroll to zoom &middot; click a star</div>
+
+<div id="splash">
+  <div class="splashcard">
+    <div class="logo">&#10022; wayfinder</div>
+    <div class="tag">a map of the way through a foggy effort</div>
+    <button id="openfolder">Open Folder&hellip;</button>
+    <div class="recent-h">Recent</div>
+    <div id="recents"></div>
+  </div>
+</div>
+
+<div id="maplist">
+  <div class="listtop">
+    <div><div class="listkick">project</div><div id="projname"></div></div>
+    <button id="openanother">Open another&hellip;</button>
+  </div>
+  <div id="cards"></div>
+</div>
 <script>
 "use strict";
 var canvas=document.getElementById("sky"), ctx=canvas.getContext("2d");
@@ -83,6 +141,7 @@ var graph=null, nodes=[], edges=[], byNum={}, selected=null;
 var clock=0, T0=(window.performance&&performance.now?performance.now():Date.now());
 var goal={x:0,y:0,s:1}, EASE=0.28; // cam eases toward goal each frame: pan, zoom, and select all move the goal
 var POSEASE=0.12, lastClock=0, lastVersion=null, polling=false; // live-reload + node position tweening
+var screen="splash", currentEffort=null, lastProject=null;      // splash | maplist | map
 
 var COL={
   resolved:{core:"#b9c9e0",glow:"#5d76ad",r:6,gr:26},
@@ -503,10 +562,12 @@ function resize(){canvas.width=innerWidth*dpr;canvas.height=innerHeight*dpr;canv
 window.addEventListener("resize",resize);
 function sortNodes(g){return (g.nodes||[]).slice().sort(function(a,b){return a.num-b.num;});}
 
-function boot(g){
+// applyGraph loads a graph cold: fresh node objects (no px) so layout runs from
+// scratch, then fit the camera. Used when a map is first opened or switched to.
+function applyGraph(g){
   graph=g; nodes=sortNodes(g); edges=g.edges||[]; byNum={}; nodes.forEach(function(n){byNum[n.num]=n;});
   layout(); nodes.forEach(function(n){n.px=n.x;n.py=n.y;n._x=n.x;n._y=n.y;}); setupFog(); fitCamera();
-  goal.x=cam.x; goal.y=cam.y; goal.s=cam.s; buildHud(); render(); startPolling();
+  goal.x=cam.x; goal.y=cam.y; goal.s=cam.s; buildHud();
 }
 
 // updateGraph folds a freshly-fetched graph into the live scene: surviving nodes
@@ -532,24 +593,87 @@ function updateGraph(ng){
   if(selected){ if(byNum[selected.num])fillPanel(selected); else closePanel(); }
 }
 
+// One poller for the whole app: only runs while a map is open, and re-checks the
+// effort mid-flight so switching maps never applies stale data.
 function startPolling(){
   setInterval(function(){
-    if(polling)return; polling=true;
-    fetch("graph.version").then(function(r){return r.text();}).then(function(v){
+    var eff=currentEffort;
+    if(!eff||polling)return; polling=true;
+    fetch("/api/version?effort="+encodeURIComponent(eff)).then(function(r){return r.text();}).then(function(v){
       v=v.trim();
+      if(currentEffort!==eff)return;
       if(lastVersion===null){lastVersion=v; return;}
       if(v===lastVersion) return;
       lastVersion=v;
-      return fetch("graph.json").then(function(r){return r.json();}).then(updateGraph);
+      return fetch("/api/graph?effort="+encodeURIComponent(eff)).then(function(r){return r.json();}).then(function(g){if(currentEffort===eff)updateGraph(g);});
     }).then(function(){polling=false;}).catch(function(){polling=false;});
   },1500);
 }
 
-resize(); initStars();
-fetch("graph.json").then(function(r){return r.json();}).then(boot).catch(function(err){
-  document.getElementById("hud").innerHTML="<h1>Couldn't load graph.json</h1><div class=dest>"+String(err)+"</div>";
-  render();
-});
+// --- screens ---------------------------------------------------------------
+function setScreen(s){
+  screen=s;
+  document.getElementById("splash").style.display=s==="splash"?"flex":"none";
+  document.getElementById("maplist").style.display=s==="maplist"?"flex":"none";
+  document.getElementById("hud").style.display=s==="map"?"block":"none";
+  document.getElementById("backbtn").style.display=s==="map"?"flex":"none";
+  document.getElementById("hint").style.display=s==="map"?"block":"none";
+  if(s!=="map")closePanel();
+}
+function showSplash(){
+  setScreen("splash");
+  var rc=document.getElementById("recents"); rc.innerHTML="";
+  fetch("/api/recents").then(function(r){return r.json();}).then(function(rs){
+    if(!rs||!rs.length){rc.innerHTML="<div class='muted' style='text-align:left;font-size:12px'>No recent projects yet.</div>";return;}
+    rs.forEach(function(p){
+      var b=el("button","recent");
+      b.appendChild(el("span","rname",p.name));
+      b.appendChild(el("span","rmeta",p.maps+" map"+(p.maps===1?"":"s")));
+      b.onclick=function(){openProject(p.path);};
+      rc.appendChild(b);
+    });
+  });
+}
+function openProject(path){
+  lastProject=path;
+  fetch("/api/maps?project="+encodeURIComponent(path)).then(function(r){return r.json();}).then(function(maps){
+    document.getElementById("projname").textContent=path.replace(/\/+$/,"").split("/").pop();
+    var g=document.getElementById("cards"); g.innerHTML="";
+    if(!maps||!maps.length){g.innerHTML="<div class='muted'>No wayfinder maps in this project's .plan/</div>";}
+    (maps||[]).forEach(function(m){
+      var c=el("button","card");
+      c.appendChild(el("div","cname",m.name));
+      var meta=el("div","cmeta");
+      meta.appendChild(el("span",null,m.resolved+"/"+m.total+" resolved"));
+      if(m.frontier)meta.appendChild(el("span","cfront",m.frontier+" on frontier"));
+      c.appendChild(meta);
+      var bar=el("div","cbar"), sp=document.createElement("span");
+      sp.style.width=(m.total?Math.round(m.resolved*100/m.total):0)+"%"; bar.appendChild(sp); c.appendChild(bar);
+      c.onclick=function(){loadMap(m.path);};
+      g.appendChild(c);
+    });
+    setScreen("maplist");
+  });
+}
+function loadMap(effort){
+  currentEffort=effort; lastVersion=null; selected=null;
+  fetch("/api/graph?effort="+encodeURIComponent(effort)).then(function(r){return r.json();}).then(function(g){
+    applyGraph(g); setScreen("map");
+  });
+}
+
+document.getElementById("openfolder").onclick=function(){
+  fetch("/api/pick").then(function(r){return r.json();}).then(function(d){if(d.path)openProject(d.path);});
+};
+document.getElementById("openanother").onclick=showSplash;
+document.getElementById("backbtn").onclick=function(){currentEffort=null; if(lastProject)openProject(lastProject); else showSplash();};
+
+resize(); initStars(); render(); startPolling();
+fetch("/api/initial").then(function(r){return r.json();}).then(function(init){
+  if(init.effort)loadMap(init.effort);
+  else if(init.project)openProject(init.project);
+  else showSplash();
+}).catch(showSplash);
 </script>
 </body>
 </html>`

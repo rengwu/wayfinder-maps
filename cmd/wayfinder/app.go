@@ -26,9 +26,13 @@ func app(dir string) int {
 	go http.Serve(ln, newServer(dir))
 	url := "http://" + ln.Addr().String() + "/"
 
+	title := "wayfinder"
+	if dir != "" {
+		title = "wayfinder — " + dir
+	}
 	w := webview.New(false)
 	defer w.Destroy()
-	w.SetTitle("wayfinder — " + dir)
+	w.SetTitle(title)
 	w.SetSize(1120, 820, webview.HintNone)
 	w.Navigate(url)
 	w.Run()

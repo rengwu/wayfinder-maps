@@ -18,7 +18,11 @@ func serve(dir string) int {
 		port = "7777"
 	}
 	addr := "localhost:" + port
-	fmt.Printf("wayfinder: serving %s at http://%s\n", dir, addr)
+	if dir == "" {
+		fmt.Printf("wayfinder: serving at http://%s\n", addr)
+	} else {
+		fmt.Printf("wayfinder: serving %s at http://%s\n", dir, addr)
+	}
 	if err := http.ListenAndServe(addr, newServer(dir)); err != nil {
 		fmt.Fprintf(os.Stderr, "wayfinder: %v\n", err)
 		return 2
@@ -26,11 +30,18 @@ func serve(dir string) int {
 	return 0
 }
 
-// newServer serves the star-map: a static canvas shell at "/", and the graph as
-// JSON at "/graph.json". The effort is re-read on every /graph.json request, so
-// a saved edit shows on the next refresh; the shell itself is static.
-func newServer(dir string) http.Handler {
+// newServer serves the app: a single-page shell at "/" (splash, map list, and
+// the star-map), plus a small JSON API. `initial` is the optional CLI path — an
+// effort opens straight into its map, a project into its list, "" the splash.
+// Every effort is re-read on request, so a saved edit shows on the next poll.
+func newServer(initial string) http.Handler {
 	mux := http.NewServeMux()
+	writeJSON := func(w http.ResponseWriter, v any) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(v); err != nil {
+			fmt.Fprintf(os.Stderr, "wayfinder: encode: %v\n", err)
+		}
+	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -41,24 +52,42 @@ func newServer(dir string) http.Handler {
 		w.Write([]byte(shellHTML))
 	})
 
-	// graph.version is a cheap change token the client polls to notice edits: the
-	// newest mtime across map.md + tickets/ plus the file count, so an edit (mtime
-	// bumps), an add or a delete (count changes) all move it.
-	mux.HandleFunc("/graph.version", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprint(w, effortVersion(dir))
+	// Where the app should open: {effort} jumps to a map, {project} to a list.
+	mux.HandleFunc("/api/initial", func(w http.ResponseWriter, r *http.Request) {
+		effort, project := initialKind(initial)
+		writeJSON(w, map[string]string{"effort": effort, "project": project})
 	})
 
-	mux.HandleFunc("/graph.json", func(w http.ResponseWriter, r *http.Request) {
-		e, err := wayfinder.Load(dir)
+	// The native macOS folder picker; returns {path:""} when cancelled.
+	mux.HandleFunc("/api/pick", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]string{"path": pickFolder()})
+	})
+
+	mux.HandleFunc("/api/recents", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, loadRecents())
+	})
+
+	// Maps in a chosen project; opening one records it in recents.
+	mux.HandleFunc("/api/maps", func(w http.ResponseWriter, r *http.Request) {
+		project := r.URL.Query().Get("project")
+		addRecent(project)
+		writeJSON(w, listMaps(project))
+	})
+
+	mux.HandleFunc("/api/graph", func(w http.ResponseWriter, r *http.Request) {
+		e, err := wayfinder.Load(r.URL.Query().Get("effort"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(buildGraph(e)); err != nil {
-			fmt.Fprintf(os.Stderr, "wayfinder: encode: %v\n", err)
-		}
+		writeJSON(w, buildGraph(e))
+	})
+
+	// A cheap change token the client polls: the newest mtime across map.md +
+	// tickets/ plus the file count, so an edit, add or delete all move it.
+	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, effortVersion(r.URL.Query().Get("effort")))
 	})
 
 	return mux

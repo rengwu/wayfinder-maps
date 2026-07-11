@@ -15,10 +15,13 @@ const usage = `wayfinder — inspect a wayfinder map
 usage:
   wayfinder status <effort-dir>   print the frontier and the state of the map
   wayfinder lint   <effort-dir>   check the map's format invariants
-  wayfinder serve  <effort-dir>   open the map in a browser (local web server)
-  wayfinder app    <effort-dir>   open the map in a native window
+  wayfinder serve  [path]         open in a browser (local web server)
+  wayfinder app    [path]         open in a native window
 
-<effort-dir> holds map.md and tickets/. Defaults to the working directory.
+<effort-dir> holds map.md and tickets/; status/lint default to the working dir.
+For serve/app, [path] is optional: an effort opens straight into its map, a
+project (a folder with a .plan/) into its map list, and no path shows a splash
+with an Open Folder button and recent projects.
 
 serve listens on :7777 (override with PORT) and re-reads the map on each request.
 app wraps the same server in a native window (requires a cgo build).
@@ -33,21 +36,26 @@ func main() {
 	}
 
 	cmd := args[0]
-	dir := "."
+	dir := ""
 	if len(args) > 1 {
 		dir = args[1]
 	}
 
-	e, err := wayfinder.Load(dir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "wayfinder: %v\n", err)
-		os.Exit(2)
-	}
-
 	switch cmd {
-	case "status":
-		os.Exit(status(e))
-	case "lint":
+	case "status", "lint":
+		// These need a single effort; default to the working directory.
+		d := dir
+		if d == "" {
+			d = "."
+		}
+		e, err := wayfinder.Load(d)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "wayfinder: %v\n", err)
+			os.Exit(2)
+		}
+		if cmd == "status" {
+			os.Exit(status(e))
+		}
 		os.Exit(lint(e))
 	case "serve":
 		os.Exit(serve(dir))
