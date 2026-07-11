@@ -82,6 +82,7 @@ var cam={x:0,y:0,s:1};
 var graph=null, nodes=[], edges=[], byNum={}, selected=null;
 var clock=0, T0=(window.performance&&performance.now?performance.now():Date.now());
 var goal={x:0,y:0,s:1}, EASE=0.28; // cam eases toward goal each frame: pan, zoom, and select all move the goal
+var POSEASE=0.12, lastClock=0, lastVersion=null, polling=false; // live-reload + node position tweening
 
 var COL={
   resolved:{core:"#b9c9e0",glow:"#5d76ad",r:6,gr:26},
@@ -132,6 +133,37 @@ function layout(){
       var d=Math.hypot(n.x,n.y)||0.01; var target=ringR(n.rank);
       var f=(target-d)*RADIAL; n.x+=(n.x/d)*f; n.y+=(n.y/d)*f;
     });
+  }
+}
+
+// relayoutWarm places a live update without disturbing the existing map. The
+// force sim has free translation/rotation modes, so re-relaxing everything slides
+// the whole constellation; instead, nodes already on screen are PINNED at their
+// current position (px), and only freshly-added nodes are relaxed against them as
+// fixed anchors. Survivors move exactly zero; a new star flies in and settles.
+function relayoutWarm(){
+  var fresh=[];
+  nodes.forEach(function(n){ if(n.px!=null){n.x=n.px;n.y=n.py;} else fresh.push(n); });
+  if(!fresh.length)return;
+  var rnd=mulberry32(97+fresh.length);
+  fresh.forEach(function(n){
+    var ax=null,ay=null;
+    edges.forEach(function(e){
+      if(e.to===n.num&&byNum[e.from]&&byNum[e.from].px!=null){ax=byNum[e.from].x;ay=byNum[e.from].y;}
+      else if(e.from===n.num&&byNum[e.to]&&byNum[e.to].px!=null){ax=byNum[e.to].x;ay=byNum[e.to].y;}
+    });
+    var ang=rnd()*6.2831853;
+    if(ax!=null){n.x=ax+Math.cos(ang)*120;n.y=ay+Math.sin(ang)*120;}
+    else{var R=ringR(n.rank);n.x=Math.cos(ang)*R;n.y=Math.sin(ang)*R;}
+  });
+  for(var it=0;it<200;it++){
+    for(var k=0;k<fresh.length;k++){
+      var n=fresh[k], fx=0, fy=0, i;
+      for(i=0;i<nodes.length;i++){var o=nodes[i];if(o===n)continue;var dx=n.x-o.x,dy=n.y-o.y,d2=dx*dx+dy*dy||0.01,d=Math.sqrt(d2),f=9000/d2;fx+=dx/d*f;fy+=dy/d*f;}
+      for(i=0;i<edges.length;i++){var e=edges[i],o=null;if(e.from===n.num)o=byNum[e.to];else if(e.to===n.num)o=byNum[e.from];if(!o)continue;var dx=o.x-n.x,dy=o.y-n.y,d=Math.hypot(dx,dy)||0.01,f=(d-150)*0.02;fx+=dx/d*f;fy+=dy/d*f;}
+      var dd=Math.hypot(n.x,n.y)||0.01,rf=(ringR(n.rank)-dd)*0.05;fx+=n.x/dd*rf;fy+=n.y/dd*rf;
+      n.x+=fx;n.y+=fy;
+    }
   }
 }
 
@@ -267,16 +299,20 @@ function drawEdge(e){
 }
 function drawNode(n){
   var c=col(n), x=n._x, y=n._y;
+  var en=(n.enter!=null)?n.enter:1;      // 0..1 grow-in for a newly-added ticket
+  var fl=n.flare||0;                      // 1..0 burst on a status change
   // Frontier stars breathe: glow and ring pulse gently so the eye is drawn to
   // what is takeable now.
   var isF=n.status==="frontier";
   var beat=0.5+0.5*Math.sin(clock*2.8);
   var pulse=isF?(0.8+0.2*beat):1;
-  var gr=isF?c.gr*(0.92+0.16*beat):c.gr;
+  var gr=(isF?c.gr*(0.92+0.16*beat):c.gr)*(0.55+0.45*en)*(1+fl*0.5);
   var g=ctx.createRadialGradient(x,y,0,x,y,gr);
-  g.addColorStop(0,hexA(c.glow,0.85*pulse)); g.addColorStop(0.4,hexA(c.glow,0.22*pulse)); g.addColorStop(1,hexA(c.glow,0));
+  g.addColorStop(0,hexA(c.glow,Math.min(1,(0.85*pulse+fl*0.5)*en))); g.addColorStop(0.4,hexA(c.glow,0.22*pulse*en)); g.addColorStop(1,hexA(c.glow,0));
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,gr,0,6.2831853); ctx.fill();
-  ctx.fillStyle=c.core; ctx.beginPath(); ctx.arc(x,y,c.r,0,6.2831853); ctx.fill();
+  ctx.fillStyle=c.core; ctx.beginPath(); ctx.arc(x,y,c.r*(0.4+0.6*en),0,6.2831853); ctx.fill();
+  // Flare: an expanding ring pulse marking a just-changed status.
+  if(fl>0){ctx.strokeStyle=hexA(c.core,fl*0.7);ctx.lineWidth=1.5+2*fl;ctx.beginPath();ctx.arc(x,y,c.r+(1-fl)*40,0,6.2831853);ctx.stroke();}
   if(isF){ctx.strokeStyle=hexA("#ffd873",0.4+0.3*beat);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,c.r+6+1.5*beat,0,6.2831853);ctx.stroke();}
   // Undermined: a red cracked halo — an uneven dashed ring, its gaps travelling,
   // marking a decision resting on a premise a later ticket destroyed.
@@ -305,11 +341,19 @@ function drawLabels(){
 }
 function render(){
   var W=innerWidth,H=innerHeight;
-  clock=((window.performance&&performance.now?performance.now():Date.now())-T0)/1000;
-  // Idle bob: a tiny per-node drift, phased by ticket number. Edges, labels and
-  // hit-testing all read _x/_y, so nothing detaches from a bobbing star.
+  var now=((window.performance&&performance.now?performance.now():Date.now())-T0)/1000;
+  var dt=now-lastClock; if(dt<0||dt>0.1)dt=0.016; lastClock=now; clock=now;
+  // Per node: ease the render base (px,py) toward the true layout position so a
+  // structural update tweens rather than jumps; add idle bob on top; decay the
+  // status-change flare and ramp a new node's grow-in. Edges/labels/hit-testing
+  // all read _x/_y, so nothing detaches.
   for(var i=0;i<nodes.length;i++){var n=nodes[i], ph=n.num*1.7;
-    n._x=n.x+Math.sin(clock*0.7+ph)*2.4; n._y=n.y+Math.cos(clock*0.55+ph)*2.4;}
+    if(n.px==null){n.px=n.x;n.py=n.y;}
+    n.px+=(n.x-n.px)*POSEASE; n.py+=(n.y-n.py)*POSEASE;
+    n._x=n.px+Math.sin(clock*0.7+ph)*2.4; n._y=n.py+Math.cos(clock*0.55+ph)*2.4;
+    if(n.flare>0)n.flare=Math.max(0,n.flare-dt/1.1);
+    if(n.enter!=null&&n.enter<1)n.enter=Math.min(1,n.enter+dt/0.55);
+  }
   // Camera eases toward its goal every frame — pan, zoom and select all just
   // move the goal, giving weighty motion instead of instant jumps.
   cam.x+=(goal.x-cam.x)*EASE; cam.y+=(goal.y-cam.y)*EASE; cam.s+=(goal.s-cam.s)*EASE;
@@ -402,12 +446,8 @@ function buildHud(){
 function frontierCount(){var n=0;nodes.forEach(function(x){if(x.status==="frontier")n++;});return n;}
 function blockedCount(){var n=0;nodes.forEach(function(x){if(x.status==="blocked")n++;});return n;}
 
-function openPanel(n){
-  selected=n;
+function fillPanel(n){
   var p=document.getElementById("panel");
-  // Ease the camera so the star sits centred in the space left of the panel.
-  var pw=p.offsetWidth||0, vx=(innerWidth-pw)/2, vy=innerHeight/2;
-  goal.x=vx-n.x*goal.s; goal.y=vy-n.y*goal.s;
   var h=p.querySelector("h2"); h.innerHTML=""; h.appendChild(el("span","num",pad2(n.num))); h.appendChild(document.createTextNode(n.title));
   var meta=p.querySelector(".meta"); meta.innerHTML="";
   meta.appendChild(el("span","c "+(n.status==="out_of_scope"?"oos":n.status), n.status.replace(/_/g," ")));
@@ -418,7 +458,13 @@ function openPanel(n){
   });
   if(n.undermined)meta.appendChild(el("span","c blocked","undermined"));
   p.querySelector(".md").innerHTML=mdToHtml(n.body);
-  p.classList.add("open");
+}
+function openPanel(n){
+  selected=n;
+  // Ease the camera so the star sits centred in the space left of the panel.
+  var p=document.getElementById("panel"), pw=p.offsetWidth||0, vx=(innerWidth-pw)/2, vy=innerHeight/2;
+  goal.x=vx-n.x*goal.s; goal.y=vy-n.y*goal.s;
+  fillPanel(n); p.classList.add("open");
 }
 function closePanel(){selected=null;document.getElementById("panel").classList.remove("open");}
 document.querySelector("#panel .x").onclick=closePanel;
@@ -455,13 +501,52 @@ function hitTest(mx,my){
 // --- boot ------------------------------------------------------------------
 function resize(){canvas.width=innerWidth*dpr;canvas.height=innerHeight*dpr;canvas.style.width=innerWidth+"px";canvas.style.height=innerHeight+"px";}
 window.addEventListener("resize",resize);
+function sortNodes(g){return (g.nodes||[]).slice().sort(function(a,b){return a.num-b.num;});}
+
+function boot(g){
+  graph=g; nodes=sortNodes(g); edges=g.edges||[]; byNum={}; nodes.forEach(function(n){byNum[n.num]=n;});
+  layout(); nodes.forEach(function(n){n.px=n.x;n.py=n.y;n._x=n.x;n._y=n.y;}); setupFog(); fitCamera();
+  goal.x=cam.x; goal.y=cam.y; goal.s=cam.s; buildHud(); render(); startPolling();
+}
+
+// updateGraph folds a freshly-fetched graph into the live scene: surviving nodes
+// are mutated in place (so selection and screen position persist), status changes
+// fire a flare, new tickets grow in, and layout re-runs with a warm start so
+// positions tween. The camera is deliberately left alone.
+function updateGraph(ng){
+  var incoming=sortNodes(ng), keep=[];
+  incoming.forEach(function(nn){
+    var old=byNum[nn.num];
+    if(old){
+      if(old.status!==nn.status||old.undermined!==nn.undermined)old.flare=1;
+      old.status=nn.status; old.undermined=nn.undermined; old.claimedBy=nn.claimedBy;
+      old.title=nn.title; old.type=nn.type; old.body=nn.body; old.rank=nn.rank; old.blockers=nn.blockers;
+      keep.push(old);
+    } else { nn.enter=0; nn.flare=1; keep.push(nn); }
+  });
+  nodes=keep; byNum={}; nodes.forEach(function(n){byNum[n.num]=n;});
+  edges=ng.edges||[]; graph=ng;
+  relayoutWarm();                                            // survivors pinned; only new nodes placed
+  nodes.forEach(function(n){if(n.px==null){n.px=n.x;n.py=n.y;}}); // new nodes appear at their final spot
+  setupFog(); buildHud();                                     // note: no fitCamera — keep the user's view
+  if(selected){ if(byNum[selected.num])fillPanel(selected); else closePanel(); }
+}
+
+function startPolling(){
+  setInterval(function(){
+    if(polling)return; polling=true;
+    fetch("graph.version").then(function(r){return r.text();}).then(function(v){
+      v=v.trim();
+      if(lastVersion===null){lastVersion=v; return;}
+      if(v===lastVersion) return;
+      lastVersion=v;
+      return fetch("graph.json").then(function(r){return r.json();}).then(updateGraph);
+    }).then(function(){polling=false;}).catch(function(){polling=false;});
+  },1500);
+}
+
 resize(); initStars();
-fetch("graph.json").then(function(r){return r.json();}).then(function(g){
-  graph=g; nodes=(g.nodes||[]).slice().sort(function(a,b){return a.num-b.num;});
-  edges=g.edges||[]; byNum={}; nodes.forEach(function(n){byNum[n.num]=n;});
-  layout(); nodes.forEach(function(n){n._x=n.x;n._y=n.y;}); setupFog(); fitCamera();
-  goal.x=cam.x; goal.y=cam.y; goal.s=cam.s; buildHud(); render();
-}).catch(function(err){
+fetch("graph.json").then(function(r){return r.json();}).then(boot).catch(function(err){
   document.getElementById("hud").innerHTML="<h1>Couldn't load graph.json</h1><div class=dest>"+String(err)+"</div>";
   render();
 });

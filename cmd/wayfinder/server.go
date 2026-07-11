@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"wayfinder/internal/wayfinder"
@@ -40,6 +41,14 @@ func newServer(dir string) http.Handler {
 		w.Write([]byte(shellHTML))
 	})
 
+	// graph.version is a cheap change token the client polls to notice edits: the
+	// newest mtime across map.md + tickets/ plus the file count, so an edit (mtime
+	// bumps), an add or a delete (count changes) all move it.
+	mux.HandleFunc("/graph.version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, effortVersion(dir))
+	})
+
 	mux.HandleFunc("/graph.json", func(w http.ResponseWriter, r *http.Request) {
 		e, err := wayfinder.Load(dir)
 		if err != nil {
@@ -53,6 +62,30 @@ func newServer(dir string) http.Handler {
 	})
 
 	return mux
+}
+
+// effortVersion is the newest mtime across map.md and tickets/*.md, plus the
+// ticket count — enough to detect edits, additions and deletions cheaply.
+func effortVersion(dir string) string {
+	var newest int64
+	var count int
+	if fi, err := os.Stat(filepath.Join(dir, "map.md")); err == nil {
+		newest = fi.ModTime().UnixNano()
+	}
+	if entries, err := os.ReadDir(filepath.Join(dir, "tickets")); err == nil {
+		for _, e := range entries {
+			if e.IsDir() || filepath.Ext(e.Name()) != ".md" {
+				continue
+			}
+			count++
+			if fi, err := e.Info(); err == nil {
+				if m := fi.ModTime().UnixNano(); m > newest {
+					newest = m
+				}
+			}
+		}
+	}
+	return fmt.Sprintf("%d-%d", newest, count)
 }
 
 // --- the graph document served to the client ------------------------------
