@@ -122,7 +122,8 @@ function fitCamera(){
   if(!nodes.length){cam={x:innerWidth/2,y:innerHeight/2,s:1};return;}
   var minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
   nodes.forEach(function(n){minx=Math.min(minx,n.x);miny=Math.min(miny,n.y);maxx=Math.max(maxx,n.x);maxy=Math.max(maxy,n.y);});
-  var pad=90; minx-=pad;miny-=pad;maxx+=pad;maxy+=pad;
+  for(var i=0;i<fogPts.length;i++){var f=fogPts[i];minx=Math.min(minx,f.x-70);miny=Math.min(miny,f.y-70);maxx=Math.max(maxx,f.x+70);maxy=Math.max(maxy,f.y+70);}
+  var pad=70; minx-=pad;miny-=pad;maxx+=pad;maxy+=pad;
   var spanx=maxx-minx||1, spany=maxy-miny||1;
   var s=Math.min(innerWidth/spanx, innerHeight/spany); s=clamp(s,0.15,1.4);
   cam.s=s;
@@ -154,6 +155,54 @@ function drawStars(W,H){
     }
   });
   ctx.globalAlpha=1;
+}
+
+// --- fog nebulae -----------------------------------------------------------
+// Fog patches (open questions not yet sharp enough to ticket) sit as faint
+// nebulae in the void beyond the constellation, each tethered to the ticket
+// that will clear it. Positions are deterministic: an anchored patch sits out
+// past its ticket's angle, an unanchored one is spread by the golden angle.
+var fogPts=[];
+function setupFog(){
+  fogPts=[];
+  if(!graph||!graph.fog||!graph.fog.length||!nodes.length)return;
+  var cx=0,cy=0; nodes.forEach(function(n){cx+=n.x;cy+=n.y;}); cx/=nodes.length; cy/=nodes.length;
+  var rim=0; nodes.forEach(function(n){rim=Math.max(rim,Math.hypot(n.x-cx,n.y-cy));}); rim+=130;
+  var rnd=mulberry32(4242);
+  graph.fog.forEach(function(f,i){
+    var anc=f.clearsWith?byNum[f.clearsWith]:null;
+    var ang=anc?Math.atan2(anc.y-cy,anc.x-cx)+(rnd()-0.5)*0.3:(i*2.399963+rnd()*0.4);
+    fogPts.push({title:f.title, anchor:anc||null, x:cx+Math.cos(ang)*rim, y:cy+Math.sin(ang)*rim});
+  });
+}
+function drawFog(){
+  for(var i=0;i<fogPts.length;i++){
+    var f=fogPts[i];
+    if(f.anchor){
+      ctx.strokeStyle="rgba(150,132,205,0.28)"; ctx.lineWidth=1; ctx.setLineDash([3,7]); ctx.lineDashOffset=-clock*4;
+      ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.anchor._x,f.anchor._y); ctx.stroke();
+      ctx.setLineDash([]); ctx.lineDashOffset=0;
+    }
+    var breathe=0.82+0.18*Math.sin(clock*0.8+f.x*0.01), R=66;
+    var g=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,R);
+    g.addColorStop(0,"rgba(122,98,192,"+(0.24*breathe)+")");
+    g.addColorStop(0.5,"rgba(92,82,170,"+(0.10*breathe)+")");
+    g.addColorStop(1,"rgba(92,82,170,0)");
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(f.x,f.y,R,0,6.2831853); ctx.fill();
+    ctx.fillStyle="rgba(185,168,224,0.5)"; ctx.beginPath(); ctx.arc(f.x,f.y,2.2,0,6.2831853); ctx.fill();
+  }
+}
+function drawFogLabels(){
+  if(cam.s<0.42||!fogPts.length)return;
+  var fs=clamp(10*Math.pow(cam.s,0.3),7.5,11.5);
+  ctx.textAlign="center"; ctx.font="italic "+fs.toFixed(1)+"px ui-sans-serif,system-ui,sans-serif";
+  ctx.shadowColor="rgba(0,0,0,0.8)"; ctx.shadowBlur=4; ctx.fillStyle="rgba(184,168,220,0.8)";
+  for(var i=0;i<fogPts.length;i++){var f=fogPts[i];
+    var sx=f.x*cam.s+cam.x, sy=f.y*cam.s+cam.y;
+    var t=f.title.length>26?f.title.slice(0,25)+"…":f.title;
+    ctx.fillText(t, sx, sy+18);
+  }
+  ctx.shadowBlur=0;
 }
 
 // --- draw ------------------------------------------------------------------
@@ -212,6 +261,14 @@ function drawNode(n){
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,gr,0,6.2831853); ctx.fill();
   ctx.fillStyle=c.core; ctx.beginPath(); ctx.arc(x,y,c.r,0,6.2831853); ctx.fill();
   if(isF){ctx.strokeStyle=hexA("#ffd873",0.4+0.3*beat);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,c.r+6+1.5*beat,0,6.2831853);ctx.stroke();}
+  // Undermined: a red cracked halo — an uneven dashed ring, its gaps travelling,
+  // marking a decision resting on a premise a later ticket destroyed.
+  if(n.undermined){
+    ctx.strokeStyle=hexA("#e06c75",0.55+0.2*Math.sin(clock*3.5+n.num));
+    ctx.lineWidth=1.6; ctx.setLineDash([5,4,2,4]); ctx.lineDashOffset=-clock*9;
+    ctx.beginPath(); ctx.arc(x,y,c.r+9,0,6.2831853); ctx.stroke();
+    ctx.setLineDash([]); ctx.lineDashOffset=0;
+  }
   if(selected===n){ctx.strokeStyle="rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,c.r+11,0,6.2831853);ctx.stroke();}
 }
 function drawLabels(){
@@ -243,9 +300,9 @@ function render(){
   ctx.fillStyle="#05070d"; ctx.fillRect(0,0,W,H);
   drawStars(W,H);
   ctx.save(); ctx.translate(cam.x,cam.y); ctx.scale(cam.s,cam.s);
-  edges.forEach(drawEdge); nodes.forEach(drawNode);
+  drawFog(); edges.forEach(drawEdge); nodes.forEach(drawNode);
   ctx.restore();
-  drawLabels();
+  drawLabels(); drawFogLabels();
   requestAnimationFrame(render);
 }
 
@@ -325,7 +382,7 @@ resize(); initStars();
 fetch("graph.json").then(function(r){return r.json();}).then(function(g){
   graph=g; nodes=(g.nodes||[]).slice().sort(function(a,b){return a.num-b.num;});
   edges=g.edges||[]; byNum={}; nodes.forEach(function(n){byNum[n.num]=n;});
-  layout(); nodes.forEach(function(n){n._x=n.x;n._y=n.y;}); fitCamera();
+  layout(); nodes.forEach(function(n){n._x=n.x;n._y=n.y;}); setupFog(); fitCamera();
   goal.x=cam.x; goal.y=cam.y; goal.s=cam.s; buildHud(); render();
 }).catch(function(err){
   document.getElementById("hud").innerHTML="<h1>Couldn't load graph.json</h1><div class=dest>"+String(err)+"</div>";
