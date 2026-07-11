@@ -172,14 +172,17 @@ function drawEdge(e){
   // centred on that point (tip half a length ahead, base half behind).
   var midx=0.25*a.x+0.5*cx+0.25*b.x, midy=0.25*a.y+0.5*cy+0.25*b.y;
   var adx=b.x-a.x, ady=b.y-a.y, al=Math.hypot(adx,ady)||1, ux=adx/al, uy=ady/al;
-  var ah=10, aw=5.5, px=-uy, py=ux;
+  var ah=7, aw=3.8, px=-uy, py=ux;
   var tipx=midx+ux*(ah*0.5), tipy=midy+uy*(ah*0.5);
   ctx.beginPath();
   ctx.moveTo(tipx,tipy);
   ctx.lineTo(tipx-ux*ah+px*aw, tipy-uy*ah+py*aw);
   ctx.lineTo(tipx-ux*ah-px*aw, tipy-uy*ah-py*aw);
   ctx.closePath();
-  ctx.fillStyle=e.satisfied?"rgba(175,205,180,0.85)":"rgba(140,152,172,0.45)";
+  // Opaque fill: a translucent arrow over the translucent line (or over another
+  // arrow near a hub) compounds alpha and reads as two stacked shapes. The
+  // satisfied/unsatisfied distinction rides on hue, not transparency.
+  ctx.fillStyle=e.satisfied?"#aecdb6":"#6f7889";
   ctx.fill();
 }
 function drawNode(n){
@@ -192,13 +195,17 @@ function drawNode(n){
   if(selected===n){ctx.strokeStyle="rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(n.x,n.y,c.r+11,0,6.2831853);ctx.stroke();}
 }
 function drawLabels(){
-  ctx.textAlign="center"; ctx.font="12px ui-sans-serif,system-ui,sans-serif";
+  if(cam.s<0.22)return;               // very far out: no text at all
+  var numOnly=cam.s<0.42;             // far out: ticket number only
+  var fs=clamp(11*Math.pow(cam.s,0.3),8,13); // subtle shrink as you zoom out
+  ctx.textAlign="center"; ctx.font=fs.toFixed(1)+"px ui-sans-serif,system-ui,sans-serif";
   ctx.shadowColor="rgba(0,0,0,0.85)"; ctx.shadowBlur=4;
   nodes.forEach(function(n){
     var s=w2s(n); var c=col(n);
-    var t=n.title.length>30?n.title.slice(0,29)+"…":n.title;
     ctx.fillStyle=LABELCOL[n.status]||"#c8ccd6";
-    ctx.fillText(pad2(n.num)+"  "+t, s.x, s.y+c.r*cam.s+15);
+    var label=pad2(n.num);
+    if(!numOnly){var t=n.title.length>30?n.title.slice(0,29)+"…":n.title; label+="  "+t;}
+    ctx.fillText(label, s.x, s.y+c.r*cam.s+fs+3);
   });
   ctx.shadowBlur=0;
 }
