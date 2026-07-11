@@ -154,14 +154,31 @@ function drawStars(W,H){
 }
 
 // --- draw ------------------------------------------------------------------
+// drawEdge draws a curved line from the blocker (from) to the dependent (to),
+// with an arrowhead landing on the dependent so the blocking direction reads at
+// a glance: from --> to means "from unblocks to".
 function drawEdge(e){
   var a=byNum[e.from], b=byNum[e.to]; if(!a||!b)return;
   var mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy)||1;
   var nx=-dy/len, ny=dx/len, bow=Math.min(46,len*0.13);
-  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(mx+nx*bow,my+ny*bow,b.x,b.y);
+  var cx=mx+nx*bow, cy=my+ny*bow;
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(cx,cy,b.x,b.y);
   if(e.satisfied){ctx.strokeStyle="rgba(150,180,155,0.5)";ctx.lineWidth=1.6;ctx.setLineDash([]);}
   else{ctx.strokeStyle="rgba(120,132,152,0.22)";ctx.lineWidth=1.2;ctx.setLineDash([4,6]);}
   ctx.stroke(); ctx.setLineDash([]);
+  // Arrowhead, oriented along the curve's tangent at the dependent end
+  // (for a quadratic Bezier the end tangent is b - controlPoint), backed off
+  // past the target star's core so it points at the node rather than into it.
+  var tdx=b.x-cx, tdy=b.y-cy, tl=Math.hypot(tdx,tdy)||1; var ux=tdx/tl, uy=tdy/tl;
+  var back=col(b).r+4, tipx=b.x-ux*back, tipy=b.y-uy*back;
+  var ah=9, aw=5, px=-uy, py=ux;
+  ctx.beginPath();
+  ctx.moveTo(tipx,tipy);
+  ctx.lineTo(tipx-ux*ah+px*aw, tipy-uy*ah+py*aw);
+  ctx.lineTo(tipx-ux*ah-px*aw, tipy-uy*ah-py*aw);
+  ctx.closePath();
+  ctx.fillStyle=e.satisfied?"rgba(175,205,180,0.8)":"rgba(140,152,172,0.42)";
+  ctx.fill();
 }
 function drawNode(n){
   var c=col(n);
