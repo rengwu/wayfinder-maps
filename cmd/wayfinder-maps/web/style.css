@@ -29,15 +29,14 @@ body.panelopen #hud{transform:translateY(105%);opacity:0;pointer-events:none}
 .c.oos{color:#8a8496;border-color:#4a4550}
 .c.type{color:#9aa2b1;border-color:#3a4150}
 .c.undermined{color:#e06c75;border-color:#6a3b3b}
-/* Ticket-number links inside an edge chip ("blocked by", "blocks"), each
-   coloured by that ticket's own status so the holdup reads at a glance. */
-.c .tl{cursor:pointer;font-variant-numeric:tabular-nums}
-.c .tl:hover{text-decoration:underline}
-.tl.resolved{color:#b9c9e0}
-.tl.frontier{color:#ffd873}
-.tl.claimed{color:#e0a44b}
-.tl.blocked{color:#c07a7a}
-.tl.oos{color:#8a8496}
+/* Edge rows in the panel ("blocked by" / "blocks"): each on its own line, a
+   plain muted label, then one pill per ticket number coloured by that
+   ticket's own status so the holdup reads at a glance. Absent edges render
+   no row at all. */
+#panel .erow{display:flex;align-items:center;flex-wrap:wrap;gap:6px;width:100%}
+#panel .erow .elabel{font-size:11px;color:#8b93a3;min-width:64px}
+.tl{cursor:pointer;font-variant-numeric:tabular-nums}
+.tl:hover{text-decoration:underline}
 #hud .bar{width:150px;flex:0 0 auto;height:6px;background:#20242e;border-radius:999px;overflow:hidden}
 #hud .bar>span{display:block;height:100%;background:linear-gradient(90deg,#6d86ad,#b9c9e0)}
 #hud .legend{display:flex;gap:12px;flex-wrap:nowrap;font-size:11px;color:#8b93a3}
