@@ -12,7 +12,13 @@ import (
 )
 
 // serve runs the map viewer as a local web server, blocking until interrupted.
+// The GUI requires a working folder dialog (only Linux can lack one), checked
+// up front so the splash's Open Folder button is never silently dead.
 func serve(dir string) int {
+	if err := dialogToolErr(); err != nil {
+		fmt.Fprintf(os.Stderr, "wayfinder-maps: %v\n", err)
+		return 2
+	}
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "7777"

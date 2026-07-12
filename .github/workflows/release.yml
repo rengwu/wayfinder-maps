@@ -1,5 +1,11 @@
-# Release binaries on tag push. Runs on macOS so the darwin builds get cgo —
-# the native window needs it — while linux/windows cross-compile as pure Go.
+# Release binaries on tag push. The Linux webkit helper must be built on Linux
+# (cgo against webkit2gtk), so two runner jobs build it per-arch first; the
+# GoReleaser job on macOS then builds everything else — darwin with cgo for
+# the native window, windows and linux mains as pure Go — and packs the
+# helpers into the Linux archives.
+#
+# ubuntu-22.04 on purpose: binaries link the oldest glibc we can, and jammy's
+# libwebkit2gtk-4.1 matches what current distros ship at runtime.
 name: release
 
 on:
@@ -10,7 +16,31 @@ permissions:
   contents: write
 
 jobs:
+  linux-helper:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: amd64
+          - runner: ubuntu-22.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install webkit2gtk dev headers
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+      - name: Build helper
+        run: CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o wayfinder-maps-webview ./cmd/wayfinder-maps-webview
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux_${{ matrix.arch }}
+          path: wayfinder-maps-webview
+
   goreleaser:
+    needs: linux-helper
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,6 +49,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
+      - uses: actions/download-artifact@v4
+        with:
+          path: helpers
+      - name: Restore helper exec bits # artifacts drop file modes
+        run: chmod +x helpers/*/wayfinder-maps-webview
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"

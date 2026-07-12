@@ -3,10 +3,8 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/rengwu/wayfinder-maps/internal/wayfinder"
 )
@@ -177,21 +175,4 @@ func removeRecent(project string) {
 		}
 	}
 	saveRecents(out)
-}
-
-// pickFolder opens the macOS "choose folder" dialog and returns the POSIX path,
-// or "" if the user cancelled (or not on macOS). It shells out to osascript so
-// there is no dependency and no main-thread requirement.
-func pickFolder() string {
-	const script = `try
-	set p to choose folder with prompt "Open a project folder"
-	return POSIX path of p
-on error
-	return ""
-end try`
-	out, err := exec.Command("osascript", "-e", script).Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
 }

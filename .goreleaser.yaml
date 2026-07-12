@@ -2,9 +2,10 @@ version: 2
 
 project_name: wayfinder-maps
 
-# Two build flavours, one binary name. The native window (`wayfinder-maps app`)
-# binds the system webview through cgo, which only the darwin builds carry;
-# linux/windows ship pure-Go, where `app` refers users to `serve`.
+# Three build flavours, one binary name. macOS binds WKWebView through cgo;
+# Windows gets its native window via pure-Go WebView2 bindings; Linux stays
+# pure Go here and carries its webkit linkage in the helper binary, which CI
+# builds on Linux runners and drops into helpers/ before this config runs.
 builds:
   - id: darwin
     main: ./cmd/wayfinder-maps
@@ -16,24 +17,44 @@ builds:
     goarch:
       - arm64
       - amd64
-  - id: portable
+  - id: windows
+    main: ./cmd/wayfinder-maps
+    binary: wayfinder-maps
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - arm64
+      - amd64
+  - id: linux
     main: ./cmd/wayfinder-maps
     binary: wayfinder-maps
     env:
       - CGO_ENABLED=0
     goos:
       - linux
-      - windows
     goarch:
       - arm64
       - amd64
 
 archives:
-  - name_template: "wayfinder-maps_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: standard
+    ids: [darwin, windows]
+    name_template: "wayfinder-maps_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
+  # Linux archives ship the webkit helper next to the main binary; `app` and
+  # the folder picker exec it from there.
+  - id: linux
+    ids: [linux]
+    name_template: "wayfinder-maps_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - src: "helpers/linux_{{ .Arch }}/wayfinder-maps-webview"
+        strip_parent: true
 
 checksum:
   name_template: checksums.txt

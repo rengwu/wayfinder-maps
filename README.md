@@ -55,9 +55,13 @@ in the project's `AGENTS.md` / `CLAUDE.md` saves retyping.
 
 ### The binary
 
-- Download from [Releases](https://github.com/rengwu/wayfinder-maps/releases). macOS
-  builds carry the native window; Linux/Windows are pure Go, where `wayfinder-maps serve` is
-  the viewer.
+- Download from [Releases](https://github.com/rengwu/wayfinder-maps/releases) — no Go
+  toolchain needed, native window and folder dialog on all three platforms. macOS uses
+  WKWebView (part of the OS); Windows uses WebView2 (ships with Windows 10/11); the
+  Linux archive bundles a small helper that binds the system webkit —
+  `libwebkit2gtk-4.1`, preinstalled on most desktops, one
+  `sudo apt install libwebkit2gtk-4.1-0` otherwise. `status` and `lint` need nothing
+  installed at all, even headless.
 - `go install github.com/rengwu/wayfinder-maps/cmd/wayfinder-maps@latest`
 
 Skill and binary are independent — each just reads the on-disk contract.
@@ -181,5 +185,7 @@ go build ./cmd/wayfinder-maps      # pure Go: status, lint, serve
 go test ./...
 ```
 
-`wayfinder-maps app` needs a cgo build for the native webview window; without one it points
-users at `serve`. Releases are cut by tagging `v*` — CI cross-builds via GoReleaser.
+The native window needs cgo on macOS (WKWebView); Windows is pure Go (WebView2). On
+Linux the webkit linkage lives in a separate helper, `./cmd/wayfinder-maps-webview`,
+built with `libwebkit2gtk-4.1-dev` and kept next to the main binary. Releases are cut
+by tagging `v*` — CI builds the helper on Linux runners and GoReleaser packs everything.
