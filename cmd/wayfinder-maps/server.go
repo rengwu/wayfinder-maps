@@ -49,13 +49,16 @@ func newServer(initial string) http.Handler {
 		}
 	}
 
+	// The static app: index.html at "/", plus style.css and the JS modules.
+	// In dev mode (WAYFINDER_DEV, see webContent) caching is disabled so an
+	// edited module shows on plain reload.
+	files := http.FileServerFS(webContent())
+	dev := os.Getenv("WAYFINDER_DEV") != ""
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
+		if dev {
+			w.Header().Set("Cache-Control", "no-store")
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(shellHTML))
+		files.ServeHTTP(w, r)
 	})
 
 	// Where the app should open: {effort} jumps to a map, {project} to a list.
@@ -138,12 +141,12 @@ func effortVersion(dir string) string {
 // --- the graph document served to the client ------------------------------
 
 type graphDoc struct {
-	Name        string     `json:"name"`
-	Destination string     `json:"destination"`
-	Counts      countsDoc  `json:"counts"`
-	Nodes       []nodeDoc  `json:"nodes"`
-	Edges       []edgeDoc  `json:"edges"`
-	Fog         []fogDoc   `json:"fog"`
+	Name        string    `json:"name"`
+	Destination string    `json:"destination"`
+	Counts      countsDoc `json:"counts"`
+	Nodes       []nodeDoc `json:"nodes"`
+	Edges       []edgeDoc `json:"edges"`
+	Fog         []fogDoc  `json:"fog"`
 }
 
 type countsDoc struct {

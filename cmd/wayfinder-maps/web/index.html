@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wayfinder-maps</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="sky"></canvas>
+<button id="backbtn">&larr; maps</button>
+<div id="hud"></div>
+<div id="panel"><span class="x">&times;</span><h2></h2><div class="meta"></div><div class="md"></div></div>
+<div id="hint">drag to pan &middot; scroll to zoom &middot; click a star</div>
+
+<div id="splash">
+  <div class="splashcard">
+    <div class="logo">&#10022; wayfinder</div>
+    <div class="tag">a map of the way through a foggy effort</div>
+    <button id="openfolder">Open Folder&hellip;</button>
+    <div class="recent-h">Recent</div>
+    <div id="recents"></div>
+  </div>
+</div>
+
+<div id="maplist">
+  <div class="listtop">
+    <div id="projname"></div>
+    <button id="openanother">Open another&hellip;</button>
+  </div>
+  <div id="cards"></div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

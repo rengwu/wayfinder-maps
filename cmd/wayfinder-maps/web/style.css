@@ -1,0 +1,115 @@
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#05070d;
+  font:14px/1.5 ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif;color:#e6e9ef}
+#sky{position:fixed;inset:0;display:block;cursor:grab}
+#sky.drag{cursor:grabbing}
+/* HUD: a flat full-width bar along the bottom, out of the constellation's way.
+   Slides down and fades when a detail panel opens so the reader sees only the map. */
+#hud{position:fixed;left:0;right:0;bottom:0;z-index:5;
+  display:flex;align-items:center;gap:20px;padding:11px 22px;
+  background:linear-gradient(0deg,rgba(7,10,16,.94),rgba(11,14,21,.55));
+  border-top:1px solid #1b212e;backdrop-filter:blur(10px);
+  transition:transform .24s cubic-bezier(.2,.7,.2,1),opacity .24s}
+body.panelopen #hud{transform:translateY(105%);opacity:0;pointer-events:none}
+#hud .htitle{min-width:110px;flex:0 1 auto;max-width:34%}
+#hud h1{font-size:14px;font-weight:600;margin:0;line-height:1.25;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .dest{font-size:11px;color:#8b93a3;line-height:1.35;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .spacer{flex:1 1 auto}
+#hud .counts{display:flex;gap:6px;flex-wrap:nowrap}
+#hud .c{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid #262b36;color:#8b93a3;white-space:nowrap}
+.c.resolved{color:#b9c9e0;border-color:#42506a}
+.c.claimed{color:#e0a44b;border-color:#7a5a2a}
+.c.frontier{color:#ffd873;border-color:#8a6a20}
+.c.blocked{color:#c07a7a;border-color:#6a3b3b}
+.c.oos{color:#8a8496;border-color:#4a4550}
+#hud .bar{width:150px;flex:0 0 auto;height:6px;background:#20242e;border-radius:999px;overflow:hidden}
+#hud .bar>span{display:block;height:100%;background:linear-gradient(90deg,#6d86ad,#b9c9e0)}
+#hud .legend{display:flex;gap:12px;flex-wrap:nowrap;font-size:11px;color:#8b93a3}
+#hud .legend b{font-weight:400;white-space:nowrap}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+#panel{position:fixed;top:0;right:0;height:100%;width:min(420px,86vw);z-index:6;
+  background:rgba(12,15,21,.94);border-left:1px solid #262b36;backdrop-filter:blur(10px);
+  transform:translateX(102%);transition:transform .22s cubic-bezier(.2,.7,.2,1);
+  display:flex;flex-direction:column;padding:20px 22px}
+#panel.open{transform:translateX(0)}
+#panel .x{position:absolute;top:14px;right:16px;cursor:pointer;color:#8b93a3;font-size:20px;line-height:1}
+#panel .x:hover{color:#e6e9ef}
+#panel h2{font-size:17px;margin:2px 0 10px;padding-right:24px}
+#panel h2 .num{color:#8b93a3;font-variant-numeric:tabular-nums;font-weight:700;margin-right:6px}
+#panel .meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+/* Extend the scroll area to the panel's right edge (the viewport edge) so the
+   scrollbar rides the far edge; re-add the 22px inset as inner padding so text
+   keeps its margin from the bar. */
+#panel .md{flex:1;overflow:auto;border-top:1px solid #262b36;padding-top:14px;
+  margin-right:-22px;padding-right:22px;font-size:13px;line-height:1.65;color:#cfd4de}
+#panel .md>*:first-child{margin-top:0}
+#panel .md h1,#panel .md h2,#panel .md h3,#panel .md h4{color:#e6e9ef;line-height:1.3;margin:16px 0 8px}
+#panel .md h1{font-size:16px}
+#panel .md h2{font-size:14px;border-bottom:1px solid #20242e;padding-bottom:4px}
+#panel .md h3{font-size:13px;color:#b7bdc9}
+#panel .md h4{font-size:12px;color:#9aa2b1;text-transform:uppercase;letter-spacing:.04em}
+#panel .md p{margin:9px 0}
+#panel .md ul,#panel .md ol{margin:9px 0;padding-left:20px}
+#panel .md li{margin:3px 0}
+#panel .md code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+  background:#20242e;padding:1px 5px;border-radius:4px;color:#d6c6a0}
+#panel .md pre{background:#0c0f15;border:1px solid #20242e;border-radius:8px;padding:12px;overflow-x:auto;margin:10px 0}
+#panel .md pre code{background:none;padding:0;color:#c8cfda;font-size:12px;line-height:1.5;white-space:pre}
+#panel .md a,#panel .md .xlink{color:#7fa8ff;text-decoration:none;cursor:pointer}
+#panel .md a:hover,#panel .md .xlink:hover{text-decoration:underline}
+#panel .md strong{color:#e6e9ef;font-weight:700}
+#panel .md em{color:#d3b98a;font-style:italic}
+#panel .md hr{border:none;border-top:1px solid #262b36;margin:14px 0}
+#panel .md blockquote{border-left:3px solid #3a4150;margin:9px 0;padding:2px 0 2px 12px;color:#9aa2b1}
+#hint{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:5;font-size:11px;color:#4b5261}
+#backbtn{position:fixed;top:16px;left:16px;z-index:7;display:none;align-items:center;
+  background:rgba(14,18,26,.72);border:1px solid #262b36;border-radius:999px;color:#b7bdc9;
+  padding:7px 14px;font-size:12px;cursor:pointer;backdrop-filter:blur(8px)}
+#backbtn:hover{color:#e6e9ef;border-color:#3a4356}
+/* splash + map list overlays, floating over the live starfield */
+#splash,#maplist{position:fixed;inset:0;z-index:10;display:none;
+  background:radial-gradient(80% 80% at 50% 30%,rgba(8,11,18,.6),rgba(5,7,13,.92))}
+#splash{align-items:center;justify-content:center}
+.splashcard{width:min(420px,90vw);text-align:center;padding:8px}
+.logo{font-size:30px;font-weight:600;letter-spacing:.02em;color:#e6e9ef}
+.tag{color:#8b93a3;font-size:13px;margin:6px 0 26px}
+#openfolder{display:inline-block;background:#2b62d6;border:none;color:#fff;font-size:14px;
+  padding:11px 22px;border-radius:10px;cursor:pointer;box-shadow:0 4px 20px rgba(43,98,214,.35)}
+#openfolder:hover{background:#356fe6}
+.recent-h{margin:30px 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;text-align:left}
+#recents{display:flex;flex-direction:column;gap:8px}
+.recent{position:relative;display:flex;align-items:center;gap:10px;text-align:left;
+  background:rgba(23,26,33,.8);border:1px solid #262b36;border-radius:10px;padding:11px 14px;cursor:pointer;color:#e6e9ef}
+.recent:hover{border-color:#3a4356;background:rgba(30,35,44,.9)}
+.recent .rname{flex:1;font-size:13px}
+/* At rest the count sits flush against the right edge; on hover it slides aside
+   and the dismiss moves into the space it vacates. The dismiss is taken out of
+   flow so that while hidden it costs no layout and cannot hold that space open. */
+.recent .rmeta{font-size:11px;color:#8b93a3;transition:transform .14s cubic-bezier(.2,.7,.2,1)}
+.recent:hover .rmeta{transform:translateX(-22px)}
+.recent .rx{position:absolute;right:12px;top:0;bottom:0;display:flex;align-items:center;
+  padding:0 4px;opacity:0;transition:opacity .14s,color .12s;
+  color:#6b7280;font-size:16px;line-height:1}
+.recent:hover .rx{opacity:1}
+.recent .rx:hover{color:#e6e9ef}
+#maplist{flex-direction:column;padding:56px 40px 40px;overflow:auto}
+/* Title and the way out sit side by side at the top-left, so the escape hatch
+   reads as attached to the project rather than floating in the corner. */
+.listtop{display:flex;align-items:center;gap:14px;
+  max-width:1000px;margin:0 auto 26px;width:100%}
+#projname{font-size:22px;font-weight:600;color:#e6e9ef}
+#openanother{background:none;border:1px solid #262b36;color:#b7bdc9;border-radius:999px;padding:7px 14px;font-size:12px;cursor:pointer}
+#openanother:hover{color:#e6e9ef;border-color:#3a4356}
+#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;
+  max-width:1000px;margin:0 auto;width:100%}
+.card{text-align:left;background:rgba(23,26,33,.82);border:1px solid #262b36;border-radius:14px;
+  padding:18px;cursor:pointer;transition:transform .08s,border-color .08s}
+.card:hover{transform:translateY(-2px);border-color:#4f8cff}
+.card .cname{font-size:15px;font-weight:600;color:#e6e9ef;line-height:1.35;margin-bottom:10px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .cmeta{display:flex;gap:10px;font-size:12px;color:#8b93a3;margin-bottom:10px}
+.card .cfront{color:#ffd873}
+.card .cbar{height:5px;background:#20242e;border-radius:999px;overflow:hidden}
+.card .cbar>span{display:block;height:100%;background:linear-gradient(90deg,#6d86ad,#b9c9e0)}
