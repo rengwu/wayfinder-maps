@@ -79,7 +79,7 @@ function unmountMap() {
 export function leaveMap(next) {
   S.currentEffort = null; // stop the poller applying mid-dissolve
   document.getElementById("hud").style.display = "none";
-  document.getElementById("backbtn").style.display = "none";
+  document.getElementById("topleft").style.display = "none";
   document.getElementById("hint").style.display = "none";
   closePanel();
   if (S.screen !== "map" || !S.nodes.length) { unmountMap(); next(); return; }
@@ -92,7 +92,7 @@ function setScreen(s) {
   document.getElementById("splash").style.display = s === "splash" ? "flex" : "none";
   document.getElementById("maplist").style.display = s === "maplist" ? "flex" : "none";
   document.getElementById("hud").style.display = s === "map" ? "flex" : "none";
-  document.getElementById("backbtn").style.display = s === "map" ? "flex" : "none";
+  document.getElementById("topleft").style.display = s === "map" ? "flex" : "none";
   document.getElementById("hint").style.display = s === "map" ? "block" : "none";
   if (s !== "map") closePanel();
 }
@@ -150,8 +150,19 @@ export function openProject(path) {
   });
 }
 
+// projectName is the map's home folder for the top-left tag: the project the
+// user browsed in from, or — when the CLI opened an effort directly — the
+// folder that owns the effort's .plan/.
+function projectName(effort) {
+  if (S.lastProject) return S.lastProject.replace(/\/+$/, "").split("/").pop();
+  var i = effort.indexOf("/.plan/");
+  if (i > 0) return effort.slice(0, i).split("/").pop();
+  return "";
+}
+
 export function loadMap(effort) {
   S.currentEffort = effort; S.lastVersion = null; S.selected = null;
+  document.getElementById("projtag").textContent = projectName(effort);
   fetch("/api/graph?effort=" + encodeURIComponent(effort)).then(function(r) { return r.json(); }).then(function(g) {
     applyGraph(g); setScreen("map"); startFade(0, 1, 2.2); // dissolve the constellation in
   });

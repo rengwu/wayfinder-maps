@@ -78,17 +78,21 @@ body.panelopen #hud{transform:translateY(105%);opacity:0;pointer-events:none}
 #panel .md hr{border:none;border-top:1px solid #262b36;margin:14px 0}
 #panel .md blockquote{border-left:3px solid #3a4150;margin:9px 0;padding:2px 0 2px 12px;color:#9aa2b1}
 #hint{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:5;font-size:11px;color:#4b5261}
-#backbtn{position:fixed;top:16px;left:16px;z-index:7;display:none;align-items:center;
+/* Top-left chrome in map view: the way back, then which project this map
+   belongs to — the HUD names the map, this names its home. */
+#topleft{position:fixed;top:16px;left:16px;z-index:7;display:none;align-items:center;gap:10px}
+#backbtn{display:flex;align-items:center;
   background:rgba(14,18,26,.72);border:1px solid #262b36;border-radius:999px;color:#b7bdc9;
   padding:7px 14px;font-size:12px;cursor:pointer;backdrop-filter:blur(8px)}
 #backbtn:hover{color:#e6e9ef;border-color:#3a4356}
+#projtag{font-size:12px;color:#8b93a3;max-width:32vw;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* splash + map list overlays, floating over the live starfield */
 #splash,#maplist{position:fixed;inset:0;z-index:10;display:none;
   background:radial-gradient(80% 80% at 50% 30%,rgba(8,11,18,.6),rgba(5,7,13,.92))}
 #splash{align-items:center;justify-content:center}
 .splashcard{width:min(420px,90vw);text-align:center;padding:8px}
-.logo{font-size:30px;font-weight:600;letter-spacing:.02em;color:#e6e9ef}
-.tag{color:#8b93a3;font-size:13px;margin:6px 0 26px}
+.logo{font-size:30px;font-weight:600;letter-spacing:.02em;color:#e6e9ef;margin-bottom:26px}
 #openfolder{display:inline-block;background:#2b62d6;border:none;color:#fff;font-size:14px;
   padding:11px 22px;border-radius:10px;cursor:pointer;box-shadow:0 4px 20px rgba(43,98,214,.35)}
 #openfolder:hover{background:#356fe6}
