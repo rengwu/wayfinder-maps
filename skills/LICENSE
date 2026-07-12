@@ -5,8 +5,10 @@ These skills are adapted from Matt Pocock's skills repository
 and redistributed under the same MIT License. Modifications: decoupled
 from the matt-pocock-skills framework, made language- and harness-agnostic,
 and retargeted to local file conventions (`.plan/`). The `wayfinder` skill
-diverges from upstream in three ways beyond that retargeting; they are
-listed under "Divergences from upstream" in README.md.
+diverges from upstream in three deliberate ways beyond that retargeting:
+a ticket is never deleted, only closed; `undermined_by` marks a decision
+whose premise a later ticket broke; and `out_of_scope` satisfies no
+blocking edge.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

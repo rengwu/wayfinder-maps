@@ -1,0 +1,13 @@
+{
+  "name": "wayfinder",
+  "displayName": "Wayfinder",
+  "version": "0.1.0",
+  "description": "Chart a big, foggy effort as a shared map of investigation tickets under .plan/, resolved one per session. Bundles the wayfinder method plus the four skills it invokes: grill-me, research, prototype, and domain-modeling. Skills originally authored by Matt Pocock (github.com/mattpocock/skills), adapted here.",
+  "author": {
+    "name": "John Goh",
+    "url": "https://github.com/rengwu"
+  },
+  "repository": "https://github.com/rengwu/wayfinder-map",
+  "license": "MIT",
+  "keywords": ["planning", "wayfinder", "tickets", "grilling", "domain-modeling"]
+}
