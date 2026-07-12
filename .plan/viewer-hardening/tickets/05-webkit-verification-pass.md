@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: []
+claimed_by: claude-code/fable-5
+claimed_at: 2026-07-12T18:11:40Z
 ---
 
 # WebKit verification pass
