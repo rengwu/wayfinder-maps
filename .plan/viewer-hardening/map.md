@@ -22,6 +22,9 @@ which documents how to build, serve a fixture map, and drive the app headless.
 - [Touch and trackpad input for the star-map](./tickets/01-touch-and-trackpad-input.md) —
   one-finger pan, fat-finger tap, pinch (and Safari gesture events) all drive
   the existing camera goal through a shared `zoomAt`; wheel behavior unchanged.
+- [Warn when WAYFINDER_DEV points at nothing](./tickets/02-wayfinder-dev-missing-dir-warning.md) —
+  startup stderr warning naming the resolved path when the dev dir lacks
+  index.html; advisory, so serving proceeds and the embedded path stays silent.
 
 ## Not yet specified
 
