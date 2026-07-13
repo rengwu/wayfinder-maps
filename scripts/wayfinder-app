@@ -1,8 +1,8 @@
 #!/bin/sh
 # Double-clickable launcher — equivalent to running `wayfinder-maps app` in a
 # terminal. Release archives ship it next to the binary: as
-# wayfinder-maps-app.command on macOS (Finder executes .command files), as
-# wayfinder-maps-app on Linux (file managers that allow launching executable
+# wayfinder-app.command on macOS (Finder executes .command files), as
+# wayfinder-app on Linux (file managers that allow launching executable
 # scripts will run it; a terminal always can).
 cd "$(dirname "$0")" || exit 1
 exec ./wayfinder-maps app

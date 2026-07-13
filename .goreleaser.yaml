@@ -39,16 +39,20 @@ builds:
       - amd64
 
 archives:
-  # darwin and linux ship a double-clickable launcher for the app window;
-  # macOS gets it as .command so Finder executes it. Windows needs neither a
-  # shell script nor a helper, so its archive is bare.
+  # darwin and linux ship double-clickable launchers for the app window and
+  # the browser view; macOS gets them as .command so Finder executes them.
+  # Windows needs neither a shell script nor a helper, so its archive is bare.
   - id: darwin
     ids: [darwin]
     name_template: "wayfinder-maps_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
     files:
-      - src: scripts/wayfinder-maps-app
-        dst: wayfinder-maps-app.command
+      - src: scripts/wayfinder-app
+        dst: wayfinder-app.command
+        info:
+          mode: 0755
+      - src: scripts/wayfinder-web
+        dst: wayfinder-web.command
         info:
           mode: 0755
   - id: windows
@@ -64,8 +68,12 @@ archives:
     files:
       - src: "helpers/linux_{{ .Arch }}/wayfinder-maps-webview"
         strip_parent: true
-      - src: scripts/wayfinder-maps-app
-        dst: wayfinder-maps-app
+      - src: scripts/wayfinder-app
+        dst: wayfinder-app
+        info:
+          mode: 0755
+      - src: scripts/wayfinder-web
+        dst: wayfinder-web
         info:
           mode: 0755
 

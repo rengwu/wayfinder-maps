@@ -1,0 +1,17 @@
+#!/bin/sh
+# Double-clickable launcher — equivalent to running `wayfinder-maps serve` in
+# a terminal, plus opening the browser, since serve itself only prints the
+# URL. Ships next to the binary as wayfinder-web.command on macOS and
+# wayfinder-web on Linux.
+cd "$(dirname "$0")" || exit 1
+url="http://localhost:${PORT:-7777}"
+# Best effort: give the server a beat to come up, then open the browser.
+(
+  sleep 1
+  if command -v open >/dev/null 2>&1; then
+    open "$url"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url" >/dev/null 2>&1
+  fi
+) &
+exec ./wayfinder-maps serve
