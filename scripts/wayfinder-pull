@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# Mirror a wayfinder map stored as GitHub issues into the .plan/ layout that
+# wayfinder-maps reads. Read-only against GitHub; the .plan tree is a cache and
+# is safe to delete. Needs `gh` (logged in) and `jq`.
+#
+#   scripts/wayfinder-pull <owner/repo> <map-issue-number> [out-dir]
+#
+# Ticket numbers are the GitHub issue numbers, so #22 stays 22 everywhere.
+set -euo pipefail
+
+repo=${1:-}
+map=${2:-}
+out=${3:-}
+if [ -z "$repo" ] || [ -z "$map" ]; then
+  echo "usage: wayfinder-pull <owner/repo> <map-issue-number> [out-dir]" >&2
+  exit 2
+fi
+
+slugify() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -e 's/[^a-z0-9]\+/-/g' -e 's/^-//' -e 's/-$//' \
+    | cut -c1-50 | sed -e 's/-$//'
+}
+
+mapjson=$(gh api "repos/$repo/issues/$map")
+maptitle=$(jq -r .title <<<"$mapjson")
+mapbody=$(jq -r '.body // ""' <<<"$mapjson")
+
+if [ -z "$out" ]; then
+  out=".plan/$(slugify "$maptitle")"
+fi
+
+subs=$(gh api --paginate "repos/$repo/issues/$map/sub_issues")
+count=$(jq 'length' <<<"$subs")
+if [ "$count" = "0" ]; then
+  echo "wayfinder-pull: issue #$map has no sub-issues" >&2
+  exit 2
+fi
+
+rm -rf "$out"
+mkdir -p "$out/tickets"
+
+decisions=""
+outofscope=""
+declare -a rewrites=()
+
+for i in $(seq 0 $((count - 1))); do
+  t=$(jq -c ".[$i]" <<<"$subs")
+  num=$(jq -r .number <<<"$t")
+  title=$(jq -r .title <<<"$t")
+  state=$(jq -r .state <<<"$t")
+  reason=$(jq -r '.state_reason // ""' <<<"$t")
+  updated=$(jq -r .updated_at <<<"$t")
+  assignee=$(jq -r '.assignees[0].login // ""' <<<"$t")
+  nblocked=$(jq -r '.issue_dependencies_summary.total_blocked_by // 0' <<<"$t")
+  type=$(jq -r '[.labels[].name | select(startswith("wayfinder:"))][0] // "wayfinder:grilling"' <<<"$t" \
+    | sed 's/^wayfinder://')
+  case "$type" in research|prototype|grilling|task) ;; *) type=grilling ;; esac
+
+  blocked_by="[]"
+  if [ "$nblocked" != "0" ]; then
+    blocked_by=$(gh api "repos/$repo/issues/$num/dependencies/blocked_by" \
+      | jq -c '[.[].number]')
+  fi
+
+  slug=$(slugify "$title")
+  file="$out/tickets/$num-$slug.md"
+  rewrites+=("s#https://github\\.com/$repo/issues/$num\\b#./tickets/$num-$slug.md#g")
+
+  {
+    echo '---'
+    echo "type: $type"
+    echo "blocked_by: $blocked_by"
+    if [ "$state" = "open" ] && [ -n "$assignee" ]; then
+      echo "claimed_by: $assignee"
+      echo "claimed_at: $updated"
+    fi
+    echo '---'
+    echo
+    echo "# $title"
+    echo
+    jq -r '.body // ""' <<<"$t"
+  } > "$file"
+
+  if [ "$state" = "closed" ]; then
+    answer=$(gh api --paginate "repos/$repo/issues/$num/comments" \
+      | jq -r '[.[].body] | join("\n\n---\n\n")' \
+      | sed -E 's/^(#{1,5}) /#\1 /')
+    [ -n "$answer" ] || answer="_Closed on GitHub with no answer comment._"
+    if [ "$reason" = "not_planned" ]; then
+      printf '\n## Ruled out\n\n%s\n' "$answer" >> "$file"
+      outofscope="$outofscope- [$title](./tickets/$num-$slug.md)
+"
+    else
+      printf '\n## Answer\n\n%s\n' "$answer" >> "$file"
+      decisions="$decisions- [$title](./tickets/$num-$slug.md)
+"
+    fi
+  fi
+
+  echo "  #$num  $type  $state${assignee:+  @$assignee}"
+done
+
+# The map issue body is already a wayfinder map; its ticket references are
+# issue URLs, so point them at the mirrored files instead. A section the body
+# does not carry is generated from the ticket states.
+sedargs=()
+for r in "${rewrites[@]}"; do sedargs+=(-e "$r"); done
+mapbody=$(printf '%s\n' "$mapbody" | sed "${sedargs[@]}")
+
+{
+  echo "# $maptitle"
+  echo
+  printf '%s\n' "$mapbody"
+  if [ -n "$decisions" ] && ! grep -q '^## Decisions so far' <<<"$mapbody"; then
+    echo
+    echo '## Decisions so far'
+    echo
+    printf '%s' "$decisions"
+  fi
+  if [ -n "$outofscope" ] && ! grep -q '^## Out of scope' <<<"$mapbody"; then
+    echo
+    echo '## Out of scope'
+    echo
+    printf '%s' "$outofscope"
+  fi
+} > "$out/map.md"
+
+echo "wayfinder-pull: $repo#$map -> $out ($count tickets)"
