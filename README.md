@@ -14,6 +14,8 @@ adds the tooling.
 - **`wayfinder-maps lint <dir>`** — does the map still tell the truth?
 - **`wayfinder-maps serve` / `app`** — the map as a star-map, in a browser or a native window
   ([design notes](docs/starmap-design.md)).
+- **[`scripts/wayfinder-pull`](scripts/wayfinder-pull)** — a map kept as GitHub issues,
+  mirrored into `.plan/` so the three commands above read it unchanged.
 
 ```
 $ wayfinder-maps status ../expensif/.plan/daily-timeline
@@ -180,6 +182,34 @@ Two older shapes still parse, each lints as a warning, and neither is written an
   frontmatter;
 - a stored `status:` field, from before status was derived. Where it agrees with the
   body, `lint` says to delete it; where it disagrees, that is an error and the body wins.
+
+## Maps kept as GitHub issues
+
+The wayfinder skill is tracker-agnostic: the same method can leave its map in an issue
+tracker rather than in `.plan/`. [`scripts/wayfinder-pull`](scripts/wayfinder-pull) mirrors
+such a map back into the local layout, so `status`, `lint` and the viewer read it with no
+change to the reader — the tool still only knows about files.
+
+```
+scripts/wayfinder-pull <owner/repo> <map-issue-number> [out-dir]
+```
+
+It needs [`gh`](https://cli.github.com) (already logged in) and `jq`; there is no token to
+configure. The default out-dir is `.plan/<slug of the map's title>`, wiped and rewritten on
+each run — a cache, not a source, so nothing in it should be hand-edited and the directory
+belongs in the host repo's `.gitignore`.
+
+The mapping follows the GitHub adapter in the skill's setup notes. 
+Two adjustments make the round trip parse. Headings inside a resolve comment are demoted one
+level, since a comment opening with its own `##` would otherwise end the `## Answer` section
+before any prose landed and leave the ticket unresolved. And the map body's ticket references
+— issue URLs — are rewritten to `./tickets/NN-<slug>.md`, which is the only form
+Decisions-so-far is scanned for; `## Decisions so far` and `## Out of scope` are generated
+only when the map body carries no section of that name.
+
+The mirror is one-directional and is a snapshot: claiming or resolving in the viewer changes
+nothing in the tracker, and a change made there shows up on the next pull. `undermined_by`
+has no GitHub representation, so a mirrored map never paints an undermined node.
 
 ## Build from source
 
