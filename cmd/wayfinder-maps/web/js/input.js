@@ -1,4 +1,4 @@
-// Camera interaction: drag to pan, scroll to zoom, click to select a star.
+// Camera interaction: drag to pan, scroll to zoom, click to select a ticket.
 // All input moves the camera GOAL; the render loop eases the camera toward it.
 import {S, canvas} from "./state.js";
 import {clamp} from "./util.js";
@@ -12,7 +12,7 @@ canvas.addEventListener("mousedown", function(ev) {
   down = true; moved = 0; last = {x: ev.clientX, y: ev.clientY}; canvas.classList.add("drag");
 });
 window.addEventListener("mousemove", function(ev) {
-  if (!down) return;
+  if (!down) { if (ev.target === canvas) canvas.style.cursor = nodeAt(ev.clientX, ev.clientY) ? "pointer" : ""; return; }
   var dx = ev.clientX - last.x, dy = ev.clientY - last.y;
   S.goal.x += dx; S.goal.y += dy; moved += Math.abs(dx) + Math.abs(dy); last = {x: ev.clientX, y: ev.clientY};
 });
@@ -100,11 +100,17 @@ canvas.addEventListener("gesturechange", function(ev) {
 canvas.addEventListener("gestureend", function(ev) { ev.preventDefault(); });
 
 function hitTest(mx, my, pad) {
+  var best = nodeAt(mx, my, pad);
+  if (best) openPanel(best); else closePanel();
+}
+
+// nodeAt is the ticket nearest (mx,my) within its hit radius, or null.
+function nodeAt(mx, my, pad) {
   var best = null, bd = 1e9, minHit = pad || 15;
   S.nodes.forEach(function(n) {
     var s = w2s(n); var d = Math.hypot(s.x - mx, s.y - my);
     var hit = Math.max(minHit, col(n).r * S.cam.s + 8);
     if (d < hit && d < bd) { bd = d; best = n; }
   });
-  if (best) openPanel(best); else closePanel();
+  return best;
 }

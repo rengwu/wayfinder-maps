@@ -4,19 +4,34 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>wayfinder-maps</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Condensed:wght@500;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="sky"></canvas>
-<div id="topleft"><button id="backbtn">&larr; Maps</button><span id="projtag"></span></div>
-<div id="hud"></div>
+<div id="top">
+  <div class="row1">
+    <button id="backbtn">All maps</button>
+    <div class="mtitle"><div class="crumb"><span id="projtag"></span></div><h1 id="mname"></h1><div id="mdest"></div></div>
+    <div class="prog"><span id="progtxt"></span><div class="bar"><span id="progbar"></span></div></div>
+    <div class="seg" id="viewseg"><button data-view="map">Map</button><button data-view="hybrid">Hybrid</button><button data-view="list">List</button></div>
+  </div>
+  <div class="row2">
+    <div class="chips" id="typechips"></div>
+    <div class="chips" id="actchips"></div>
+    <div class="tools"><span id="shown"></span><input id="search" type="search" placeholder="Filter tickets" autocomplete="off" spellcheck="false"><button id="clearf">Clear</button></div>
+  </div>
+  <details id="lint"><summary></summary><div class="lrows"></div></details>
+</div>
+<div id="list"></div>
 <div id="panel"><span class="x">&times;</span><h2></h2><div class="meta"></div><div class="md"></div></div>
-<div id="hint">drag to pan &middot; scroll to zoom &middot; click a star</div>
+<div id="loading"><span class="spin"></span>Loading map</div>
+<div id="hint">drag to pan &middot; scroll to zoom &middot; click a ticket</div>
 
 <div id="splash">
   <div class="splashcard">
-    <div class="logo">&#10022; wayfinder</div>
-    <button id="openfolder">Open Folder&hellip;</button>
+    <div class="logo">wayfinder</div>
+    <button id="openfolder">Open folder</button>
     <div class="recent-h">Recent</div>
     <div id="recents"></div>
   </div>
@@ -25,7 +40,7 @@
 <div id="maplist">
   <div class="listtop">
     <div id="projname"></div>
-    <button id="openanother">&#8644; Switch projects</button>
+    <button id="openanother">Switch project</button>
   </div>
   <div id="cards"></div>
 </div>

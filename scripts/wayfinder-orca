@@ -1,0 +1,106 @@
+#!/bin/sh
+# Open a wayfinder map in a tab of Orca's built-in browser.
+#
+#   scripts/wayfinder-orca [--every SECS] [path | owner/repo#N]
+#
+# [path] is an effort dir (opens its map) or a project with a .plan/ (opens
+# its map list); it defaults to the enclosing git repo, else the working dir.
+# owner/repo#N names a map kept as GitHub issue N: it is mirrored with
+# wayfinder-pull into ~/.cache/wayfinder-maps/<owner>-<repo>/.plan/N and that
+# copy is opened. --every SECS keeps re-pulling it in the background so the
+# tab follows the tracker; rerunning replaces the previous loop for that map.
+#
+# One `wayfinder-maps serve` on $PORT (default 7777) backs every tab: it is
+# started in the background if nothing answers there, and each tab names its
+# own project through ?path=. The tab opens in the current Orca worktree, or
+# in $ORCA_WORKTREE (any `orca` selector, e.g. path:/abs/repo). A tab already
+# showing the same URL is switched to rather than duplicated.
+set -eu
+
+port=${PORT:-7777}
+orca=${ORCA_CLI_COMMAND:-orca}
+worktree=${ORCA_WORKTREE:-active}
+
+# Resolve symlinks so a link on PATH still finds wayfinder-pull beside the real file.
+here=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
+
+every=
+if [ "${1:-}" = "--every" ]; then
+  every=${2:?--every needs a number of seconds}
+  shift 2
+fi
+
+target=${1:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}
+case "$target" in
+  */*'#'[0-9]*)
+    repo=${target%%#*}
+    num=${target##*#}
+    cache="${XDG_CACHE_HOME:-$HOME/.cache}/wayfinder-maps/$(echo "$repo" | tr / -)/.plan/$num"
+    # wayfinder-pull wipes its out-dir before refetching, so it writes to a
+    # scratch dir that is swapped in whole; the open tab never sees half a map.
+    pull='tmp="$3.new"; "$0" "$1" "$2" "$tmp" >/dev/null && rm -rf "$3" && mv "$tmp" "$3"'
+    mkdir -p "$(dirname "$cache")"
+    sh -c "$pull" "$here/wayfinder-pull" "$repo" "$num" "$cache"
+    pidfile="$cache.pull.pid"
+    if [ -f "$pidfile" ]; then
+      kill "$(cat "$pidfile")" 2>/dev/null || true
+      rm -f "$pidfile"
+    fi
+    if [ -n "$every" ]; then
+      nohup sh -c 'while sleep "$4"; do sh -c "$5" "$0" "$1" "$2" "$3"; done' \
+        "$here/wayfinder-pull" "$repo" "$num" "$cache" "$every" "$pull" >/dev/null 2>&1 &
+      echo $! >"$pidfile"
+    fi
+    target=$cache
+    ;;
+  *)
+    if [ -n "$every" ]; then
+      echo "wayfinder-orca: --every only applies to owner/repo#N" >&2
+      exit 2
+    fi
+    ;;
+esac
+target=$(cd "$target" && pwd)
+base="http://localhost:$port"
+url="$base/?path=$(jq -rn --arg p "$target" '$p | @uri')"
+
+# The binary: on PATH, else where `go install` puts it.
+bin=$(command -v wayfinder-maps 2>/dev/null || true)
+if [ -z "$bin" ] && command -v go >/dev/null 2>&1; then
+  bin="$(go env GOPATH)/bin/wayfinder-maps"
+fi
+
+if ! curl -fsS "$base/api/initial" >/dev/null 2>&1; then
+  if [ -z "$bin" ] || [ ! -x "$bin" ]; then
+    echo "wayfinder-orca: wayfinder-maps not found; run: go install ./cmd/wayfinder-maps" >&2
+    exit 2
+  fi
+  log="${TMPDIR:-/tmp}/wayfinder-maps-$port.log"
+  PORT=$port nohup "$bin" serve >"$log" 2>&1 &
+  i=0
+  until curl -fsS "$base/api/initial" >/dev/null 2>&1; do
+    i=$((i + 1))
+    if [ "$i" -ge 50 ]; then
+      echo "wayfinder-orca: server did not come up on :$port (see $log)" >&2
+      exit 2
+    fi
+    sleep 0.1
+  done
+fi
+
+# A server built before ?path= existed ignores it and opens its own path.
+got=$(curl -fsS "$base/api/initial?path=$(jq -rn --arg p "$target" '$p | @uri')" |
+  jq -r '.effort + .project')
+if [ "$got" != "$target" ]; then
+  echo "wayfinder-orca: the server on :$port ignores ?path=; stop it and rerun" >&2
+  exit 2
+fi
+
+index=$("$orca" tab list --worktree "$worktree" --json |
+  jq -r --arg u "$url" '[.result.tabs[] | select(.url == $u)][0].index // empty')
+if [ -n "$index" ]; then
+  "$orca" tab switch --worktree "$worktree" --index "$index" --json >/dev/null
+else
+  "$orca" tab create --worktree "$worktree" --url "$url" --json >/dev/null
+fi
+echo "$url"

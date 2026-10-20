@@ -19,7 +19,7 @@ fi
 slugify() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
-    | sed -e 's/[^a-z0-9]\+/-/g' -e 's/^-//' -e 's/-$//' \
+    | sed -E -e 's/[^a-z0-9]+/-/g' -e 's/^-//' -e 's/-$//' \
     | cut -c1-50 | sed -e 's/-$//'
 }
 
@@ -66,7 +66,9 @@ for i in $(seq 0 $((count - 1))); do
 
   slug=$(slugify "$title")
   file="$out/tickets/$num-$slug.md"
-  rewrites+=("s#https://github\\.com/$repo/issues/$num\\b#./tickets/$num-$slug.md#g")
+  # Extended regex with an explicit non-digit (or end) after the number: BSD
+  # sed on macOS has no \b, and #3 must not rewrite inside #31.
+  rewrites+=("s#https://github\\.com/$repo/issues/$num([^0-9]|\$)#./tickets/$num-$slug.md\\1#g")
 
   {
     echo '---'
@@ -107,7 +109,7 @@ done
 # does not carry is generated from the ticket states.
 sedargs=()
 for r in "${rewrites[@]}"; do sedargs+=(-e "$r"); done
-mapbody=$(printf '%s\n' "$mapbody" | sed "${sedargs[@]}")
+mapbody=$(printf '%s\n' "$mapbody" | sed -E "${sedargs[@]}")
 
 {
   echo "# $maptitle"

@@ -1,9 +1,12 @@
-// Fog patches (open questions not yet sharp enough to ticket) sit as faint
-// nebulae in the void beyond the constellation, each tethered to the ticket
-// that will clear it. Positions are deterministic: an anchored patch sits out
+// Fog patches (open questions not yet sharp enough to ticket) sit as hatched,
+// unsurveyed boxes beyond the tickets, each tethered to the ticket that will
+// clear it. Positions are deterministic: an anchored patch sits out
 // past its ticket's angle, an unanchored one is spread by the golden angle.
 import {S, ctx} from "./state.js";
 import {clamp, mulberry32} from "./util.js";
+
+// R is the half-size of a fog box, in world units.
+var R = 30;
 
 export function setupFog() {
   S.fogPts = [];
@@ -22,31 +25,32 @@ export function drawFog() {
   for (var i = 0; i < S.fogPts.length; i++) {
     var f = S.fogPts[i];
     if (f.anchor) {
-      ctx.strokeStyle = "rgba(150,132,205,0.28)"; ctx.lineWidth = 1; ctx.setLineDash([3, 7]); ctx.lineDashOffset = -S.clock * 4;
+      ctx.strokeStyle = "rgba(138,135,126,0.35)"; ctx.lineWidth = 1; ctx.setLineDash([2, 4]); ctx.lineDashOffset = -S.clock * 4;
       ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.anchor._x, f.anchor._y); ctx.stroke();
       ctx.setLineDash([]); ctx.lineDashOffset = 0;
     }
-    var breathe = 0.85 + 0.18 * Math.sin(S.clock * 0.8 + f.x * 0.01), R = 92;
-    var g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, R);
-    g.addColorStop(0, "rgba(140,112,216," + (0.36 * breathe) + ")");
-    g.addColorStop(0.45, "rgba(104,92,186," + (0.16 * breathe) + ")");
-    g.addColorStop(1, "rgba(92,82,170,0)");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, R, 0, 6.2831853); ctx.fill();
-    ctx.fillStyle = "rgba(196,180,232,0.62)"; ctx.beginPath(); ctx.arc(f.x, f.y, 2.4, 0, 6.2831853); ctx.fill();
+    // The box: a dashed outline over diagonal hatching, clipped to the square.
+    ctx.fillStyle = "rgba(14,15,16,0.9)"; ctx.fillRect(f.x - R, f.y - R, 2 * R, 2 * R);
+    ctx.save(); ctx.beginPath(); ctx.rect(f.x - R, f.y - R, 2 * R, 2 * R); ctx.clip();
+    ctx.strokeStyle = "rgba(138,135,126,0.12)"; ctx.lineWidth = 1; ctx.beginPath();
+    for (var d = -2 * R; d < 2 * R; d += 8) { ctx.moveTo(f.x + d - R, f.y + R); ctx.lineTo(f.x + d + R, f.y - R); }
+    ctx.stroke(); ctx.restore();
+    ctx.strokeStyle = "rgba(138,135,126,0.32)"; ctx.setLineDash([2, 4]);
+    ctx.strokeRect(f.x - R + 0.5, f.y - R + 0.5, 2 * R - 1, 2 * R - 1); ctx.setLineDash([]);
   }
 }
 
 export function drawFogLabels(a) {
   if (S.cam.s < 0.42 || !S.fogPts.length || a <= 0.002) return;
-  var fs = clamp(10 * Math.pow(S.cam.s, 0.3), 7.5, 11.5);
-  ctx.textAlign = "center"; ctx.font = "italic " + fs.toFixed(1) + "px ui-sans-serif,system-ui,sans-serif";
-  ctx.shadowColor = "rgba(0,0,0," + (0.8 * a).toFixed(3) + ")"; ctx.shadowBlur = 4;
-  ctx.fillStyle = "rgba(184,168,220," + (0.8 * a).toFixed(3) + ")";
+  var fs = clamp(10 * Math.pow(S.cam.s, 0.3), 7.5, 10.5);
+  ctx.textAlign = "center"; ctx.font = "italic " + fs.toFixed(1) + "px 'Roboto Mono', ui-monospace, monospace";
   for (var i = 0; i < S.fogPts.length; i++) {
     var f = S.fogPts[i];
     var sx = f.x * S.ec.s + S.ec.x, sy = f.y * S.ec.s + S.ec.y;
     var t = f.title.length > 26 ? f.title.slice(0, 25) + "…" : f.title;
-    ctx.fillText(t, sx, sy + 18);
+    var w = ctx.measureText(t).width;
+    ctx.fillStyle = "rgba(14,15,16," + (0.85 * a).toFixed(3) + ")"; ctx.fillRect(sx - w / 2 - 4, sy + R * S.ec.s + 4, w + 8, fs + 6);
+    ctx.fillStyle = "rgba(138,135,126," + a.toFixed(3) + ")";
+    ctx.fillText(t, sx, sy + R * S.ec.s + fs + 6);
   }
-  ctx.shadowBlur = 0;
 }

@@ -62,8 +62,14 @@ func newServer(initial string) http.Handler {
 	})
 
 	// Where the app should open: {effort} jumps to a map, {project} to a list.
+	// A ?path= on the page URL overrides the CLI path, so one server can open
+	// any project in its own tab (e.g. one per Orca worktree).
 	mux.HandleFunc("/api/initial", func(w http.ResponseWriter, r *http.Request) {
-		effort, project := initialKind(initial)
+		path := initial
+		if p := r.URL.Query().Get("path"); p != "" {
+			path = p
+		}
+		effort, project := initialKind(path)
 		writeJSON(w, map[string]string{"effort": effort, "project": project})
 	})
 
@@ -147,6 +153,15 @@ type graphDoc struct {
 	Nodes       []nodeDoc `json:"nodes"`
 	Edges       []edgeDoc `json:"edges"`
 	Fog         []fogDoc  `json:"fog"`
+	Lint        []lintDoc `json:"lint"`
+}
+
+// lintDoc is one `wayfinder-maps lint` finding, shown in the viewer's lint
+// strip. File is relative to the effort dir.
+type lintDoc struct {
+	Level string `json:"level"` // error|warn
+	File  string `json:"file"`
+	Msg   string `json:"msg"`
 }
 
 type countsDoc struct {
@@ -165,8 +180,11 @@ type nodeDoc struct {
 	Rank       int    `json:"rank"`
 	Undermined bool   `json:"undermined"`
 	ClaimedBy  string `json:"claimedBy,omitempty"`
-	Blockers   []int  `json:"blockers"`
-	Body       string `json:"body"`
+	ClaimedAt  string `json:"claimedAt,omitempty"`
+	// UnderminedBy names the tickets that broke this one's premise.
+	UnderminedBy []int  `json:"underminedBy,omitempty"`
+	Blockers     []int  `json:"blockers"`
+	Body         string `json:"body"`
 }
 
 type edgeDoc struct {
@@ -230,15 +248,17 @@ func buildGraph(e *wayfinder.Effort) graphDoc {
 
 	for _, t := range e.Tickets {
 		g.Nodes = append(g.Nodes, nodeDoc{
-			Num:        t.Num,
-			Title:      t.Title,
-			Type:       string(t.Type),
-			Status:     displayStatus(t, frontier),
-			Rank:       rank[t.Num],
-			Undermined: len(t.UnderminedBy) > 0,
-			ClaimedBy:  t.ClaimedBy,
-			Blockers:   t.BlockedBy,
-			Body:       ticketBody(t.Path),
+			Num:          t.Num,
+			Title:        t.Title,
+			Type:         string(t.Type),
+			Status:       displayStatus(t, frontier),
+			Rank:         rank[t.Num],
+			Undermined:   len(t.UnderminedBy) > 0,
+			ClaimedBy:    t.ClaimedBy,
+			ClaimedAt:    t.ClaimedAt,
+			UnderminedBy: t.UnderminedBy,
+			Blockers:     t.BlockedBy,
+			Body:         ticketBody(t.Path),
 		})
 		for _, b := range t.BlockedBy {
 			satisfied := false
@@ -251,6 +271,14 @@ func buildGraph(e *wayfinder.Effort) graphDoc {
 
 	for _, f := range e.Map.Fog {
 		g.Fog = append(g.Fog, fogDoc{Title: f.Title, ClearsWith: f.ClearsWith})
+	}
+
+	for _, d := range wayfinder.Lint(e, wayfinder.DefaultOptions()) {
+		file := d.File
+		if r, err := filepath.Rel(e.Dir, d.File); err == nil {
+			file = r
+		}
+		g.Lint = append(g.Lint, lintDoc{Level: d.Level.String(), File: file, Msg: d.Msg})
 	}
 	return g
 }

@@ -1,4 +1,4 @@
-<img src="https://i.imgur.com/jv8Bhu0.png" alt="demo app: one wayfinder map at a moment">
+<img src="docs/assets/orca-hybrid.png" alt="the viewer in hybrid view: map on the left, ticket cards on the right, filter chips above">
 
 # wayfinder-maps
 
@@ -12,8 +12,11 @@ adds the tooling.
 - **`wayfinder-maps status <dir>`** — what is resolved, what is in flight, and what is ready
   to claim (the _frontier_: open, unclaimed, every blocker resolved).
 - **`wayfinder-maps lint <dir>`** — does the map still tell the truth?
-- **`wayfinder-maps serve` / `app`** — the map as a star-map, in a browser or a native window
-  ([design notes](docs/starmap-design.md)).
+- **`wayfinder-maps serve` / `app`** — the map with ticket cards and filters, in a browser
+  or a native window.
+- **[`scripts/wayfinder-orca`](scripts/wayfinder-orca)** — the same viewer in a tab of
+  [Orca](https://github.com/stablyai/orca)'s built-in browser. See
+  [Wayfinder maps in Orca](#wayfinder-maps-in-orca) to set it up.
 - **[`scripts/wayfinder-pull`](scripts/wayfinder-pull)** — a map kept as GitHub issues,
   mirrored into `.plan/` so the three commands above read it unchanged.
 
@@ -33,6 +36,115 @@ Undermined — resolved on a premise that later changed:
 
 Fog: 5 patches, 1 anchored to a ticket
 ```
+
+## Wayfinder maps in Orca
+
+`wayfinder-orca` opens a wayfinder map in a tab of Orca's built-in browser, beside the
+agent working on it. Tested on macOS.
+
+### Install
+
+You need Orca and Homebrew. Setup takes about five minutes.
+
+1. Install the tools. `gh` is only needed for maps kept as GitHub issues.
+
+   ```
+   brew install go jq gh
+   gh auth login
+   ```
+
+2. Clone this repo and build the viewer. `go install` puts `wayfinder-maps` in
+   `~/go/bin`; the launcher looks there, so it doesn't need to be on your PATH.
+
+   ```
+   git clone https://github.com/rengwu/wayfinder-maps.git ~/code/wayfinder-maps
+   cd ~/code/wayfinder-maps
+   go install ./cmd/wayfinder-maps
+   ```
+
+3. Put the launcher on your PATH.
+
+   ```
+   mkdir -p ~/.local/bin
+   ln -s "$PWD/scripts/wayfinder-orca" ~/.local/bin/wayfinder-orca
+   ```
+
+   If a new terminal says `wayfinder-orca: command not found`, add
+   `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc` and open a new terminal.
+
+4. Optional: install the Claude Code skill, so you can ask an agent to "show the
+   wayfinder map".
+
+   ```
+   mkdir -p ~/.claude/skills
+   ln -s "$PWD/skills/wayfinder-orca" ~/.claude/skills/wayfinder-orca
+   ```
+
+   Claude Code loads skills when a session starts, so start a new session after this.
+
+### Try it
+
+Open a terminal in any Orca worktree and run:
+
+```
+wayfinder-orca ~/code/wayfinder-maps/examples/.plan/offline-mode
+```
+
+A tab titled "wayfinder-maps" opens in that worktree's browser, showing the example map in
+the screenshot above. The strip under the filters shows one lint warning, because the
+example's claimed ticket is more than 72 hours old. That's expected.
+
+Run it from an Orca terminal: the launcher calls the `orca` command, which Orca puts on the
+PATH of its own terminals.
+
+### Open your own maps
+
+| Where the map lives | Command |
+|---|---|
+| A `.plan/` folder in the repo | `wayfinder-orca` from inside the repo (opens its list of maps) |
+| One map folder | `wayfinder-orca path/to/.plan/<map>` |
+| GitHub issues | `wayfinder-orca owner/repo#N`, where N is the map issue |
+
+For a GitHub map, the launcher copies the map into `~/.cache/wayfinder-maps` with
+[`wayfinder-pull`](scripts/wayfinder-pull) and opens the copy. Add `--every 120` to re-copy
+it every two minutes so the tab follows the tracker; run the command again without
+`--every` to stop that. To find the map issue, run `gh issue list -l wayfinder:map --state all`.
+
+With the skill installed, you can instead ask Claude to "show the wayfinder map", and it
+runs the right command.
+
+### Using the page
+
+- Three views: Map, Hybrid (map plus ticket cards) and List. Switch with the buttons at
+  top right or the keys 1, 2 and 3. Below 760 px wide, Hybrid shows the cards alone.
+- The chips filter by ticket type and by what can happen next: takeable, need you
+  (HITL tickets), agent-ready (AFK tickets), in progress, blocked, resolved. Click a chip
+  again to clear it.
+- `/` focuses the search box, which matches ticket numbers, titles and text.
+- Click a card or a ticket on the map to read the ticket. Escape closes it.
+- The page redraws within two seconds of a ticket file changing on disk.
+
+### Update
+
+```
+cd ~/code/wayfinder-maps
+git pull
+go install ./cmd/wayfinder-maps
+pkill -f 'wayfinder-maps serve'
+```
+
+The next `wayfinder-orca` starts the new build. Reload any open map tabs.
+
+### Troubleshooting
+
+- `wayfinder-maps not found`: run `go install ./cmd/wayfinder-maps` in the clone.
+- `the server on :7777 ignores ?path=`: an older build holds the port. Run
+  `pkill -f 'wayfinder-maps serve'` and try again.
+- Something else uses port 7777: run with another port, such as `PORT=7788 wayfinder-orca`.
+- The tab opened in the wrong worktree: run the command from a terminal in the worktree you
+  want, or set `ORCA_WORKTREE=path:/abs/path/to/repo`.
+- The map tab looks frozen: Orca pauses tabs that aren't on screen. Click into the tab.
+- The server log is at `$TMPDIR/wayfinder-maps-7777.log`.
 
 ## Install
 

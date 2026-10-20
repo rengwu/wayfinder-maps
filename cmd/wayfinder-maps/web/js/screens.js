@@ -1,10 +1,11 @@
-// The three screens (splash, map list, star-map), the transitions between
-// them, graph loading, and the live-reload poller.
+// The three screens (splash, map list, map), the transitions between them,
+// graph loading, and the live-reload poller.
 import {S} from "./state.js";
 import {el} from "./util.js";
 import {layout, relayoutWarm, fitCamera} from "./layout.js";
 import {setupFog} from "./fog.js";
-import {buildHud} from "./hud.js";
+import {buildToolbar, applyView} from "./toolbar.js";
+import {renderList} from "./list.js";
 import {fillPanel, closePanel} from "./panel.js";
 import {startFade} from "./draw.js";
 
@@ -15,7 +16,7 @@ function sortNodes(g) { return (g.nodes || []).slice().sort(function(a, b) { ret
 function applyGraph(g) {
   S.graph = g; S.nodes = sortNodes(g); S.edges = g.edges || []; S.byNum = {}; S.nodes.forEach(function(n) { S.byNum[n.num] = n; });
   layout(); S.nodes.forEach(function(n) { n.px = n.x; n.py = n.y; n._x = n.x; n._y = n.y; }); setupFog(); fitCamera();
-  S.goal.x = S.cam.x; S.goal.y = S.cam.y; S.goal.s = S.cam.s; buildHud();
+  S.goal.x = S.cam.x; S.goal.y = S.cam.y; S.goal.s = S.cam.s; buildToolbar(); renderList();
 }
 
 // updateGraph folds a freshly-fetched graph into the live scene: surviving nodes
@@ -37,7 +38,7 @@ function updateGraph(ng) {
   S.edges = ng.edges || []; S.graph = ng;
   relayoutWarm();                                                       // survivors pinned; only new nodes placed
   S.nodes.forEach(function(n) { if (n.px == null) { n.px = n.x; n.py = n.y; } }); // new nodes appear at their final spot
-  setupFog(); buildHud();                                               // note: no fitCamera — keep the user's view
+  setupFog(); buildToolbar(); renderList();                             // note: no fitCamera; keep the user's view
   if (S.selected) { if (S.byNum[S.selected.num]) fillPanel(S.selected); else closePanel(); }
 }
 
@@ -78,9 +79,7 @@ function unmountMap() {
 // doesn't hang over the dissolving stars.
 export function leaveMap(next) {
   S.currentEffort = null; // stop the poller applying mid-dissolve
-  document.getElementById("hud").style.display = "none";
-  document.getElementById("topleft").style.display = "none";
-  document.getElementById("hint").style.display = "none";
+  document.body.classList.remove("on-map");
   closePanel();
   if (S.screen !== "map" || !S.nodes.length) { unmountMap(); next(); return; }
   next();                                  // destination appears at once
@@ -91,9 +90,9 @@ function setScreen(s) {
   S.screen = s;
   document.getElementById("splash").style.display = s === "splash" ? "flex" : "none";
   document.getElementById("maplist").style.display = s === "maplist" ? "flex" : "none";
-  document.getElementById("hud").style.display = s === "map" ? "flex" : "none";
-  document.getElementById("topleft").style.display = s === "map" ? "flex" : "none";
-  document.getElementById("hint").style.display = s === "map" ? "block" : "none";
+  // body.on-map shows the map screen's chrome; style.css lays it out per view.
+  document.body.classList.toggle("on-map", s === "map");
+  if (s === "map") applyView();
   if (s !== "map") closePanel();
 }
 
@@ -163,7 +162,9 @@ function projectName(effort) {
 export function loadMap(effort) {
   S.currentEffort = effort; S.lastVersion = null; S.selected = null;
   document.getElementById("projtag").textContent = projectName(effort);
+  var spin = document.getElementById("loading"); spin.style.display = "flex";
   fetch("/api/graph?effort=" + encodeURIComponent(effort)).then(function(r) { return r.json(); }).then(function(g) {
-    applyGraph(g); setScreen("map"); startFade(0, 1, 2.2); // dissolve the constellation in
-  });
+    spin.style.display = "none";
+    setScreen("map"); applyGraph(g); startFade(0, 1, 2.2); // chrome first, so the fit sees the free area
+  }).catch(function() { spin.style.display = "none"; });
 }

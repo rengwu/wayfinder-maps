@@ -1,5 +1,5 @@
 // Deterministic rank-biased force layout, plus the camera fit for a fresh map.
-import {S} from "./state.js";
+import {S, viewRect} from "./state.js";
 import {clamp, mulberry32} from "./util.js";
 
 export function ringR(rank) { return 130 + rank * 165; }
@@ -74,11 +74,10 @@ export function fitCamera() {
   for (var i = 0; i < S.fogPts.length; i++) { var f = S.fogPts[i]; minx = Math.min(minx, f.x - 90); miny = Math.min(miny, f.y - 90); maxx = Math.max(maxx, f.x + 90); maxy = Math.max(maxy, f.y + 90); }
   var pad = 70; minx -= pad; miny -= pad; maxx += pad; maxy += pad;
   var spanx = maxx - minx || 1, spany = maxy - miny || 1;
-  // Leave the top hint and the bottom HUD bar their own bands, and fit/centre the
-  // constellation into what is left so no star hides behind the chrome.
-  var topInset = 54, botInset = 72, availH = Math.max(120, innerHeight - topInset - botInset);
-  var s = Math.min(innerWidth / spanx, availH / spany); s = clamp(s, 0.15, 1.4);
+  // Fit and centre the map into the area the toolbar and the hybrid list leave.
+  var r = viewRect(), availW = Math.max(120, r.x1 - r.x0), availH = Math.max(120, r.y1 - r.y0);
+  var s = Math.min(availW / spanx, availH / spany); s = clamp(s, 0.15, 1.4);
   S.cam.s = s;
   var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
-  S.cam.x = innerWidth / 2 - cx * s; S.cam.y = (topInset + availH / 2) - cy * s;
+  S.cam.x = (r.x0 + r.x1) / 2 - cx * s; S.cam.y = (r.y0 + r.y1) / 2 - cy * s;
 }

@@ -1,133 +1,267 @@
+/* Dark instrument-panel theme, after alex-style: flat surfaces, 1px borders,
+   square corners, Roboto Mono for numbers and labels, a terracotta accent on
+   the one thing to act on. The canvas colours live in js/theme.js. */
+:root{
+  --bg:#0e0f10;--panel:#141516;--border:#2a2c2f;--border-strong:#3a3c3f;--rule:#222426;
+  --ink:#e4e1d8;--muted:#8a877e;--accent:#e2683c;--accent-rgb:226,104,60;--on-accent:#0e0f10;
+  --good:#4fbf5a;--warning:#e6c229;--critical:#ff5a4a;--off:#5a5c5e;--blocked:#7a7c7e;
+  --font:'Roboto',system-ui,sans-serif;
+  --font-title:'Roboto Condensed','Roboto',sans-serif;
+  --font-mono:'Roboto Mono',ui-monospace,Menlo,monospace;
+}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:#05070d;
-  font:14px/1.5 ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif;color:#e6e9ef}
-/* touch-action:none — the canvas owns every touch gesture (pan, pinch, tap);
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
+  font:14px/1.5 var(--font);color:var(--ink);font-variant-numeric:tabular-nums}
+button{font:inherit;border-radius:0}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* touch-action:none: the canvas owns every touch gesture (pan, pinch, tap);
    without it the browser pans/zooms the page instead. */
 #sky{position:fixed;inset:0;display:block;cursor:grab;touch-action:none}
 #sky.drag{cursor:grabbing}
-/* HUD: a flat full-width bar along the bottom, out of the constellation's way.
-   Slides down and fades when a detail panel opens so the reader sees only the map. */
-#hud{position:fixed;left:0;right:0;bottom:0;z-index:5;
-  display:flex;align-items:center;gap:20px;padding:11px 22px;
-  background:linear-gradient(0deg,rgba(7,10,16,.94),rgba(11,14,21,.55));
-  border-top:1px solid #1b212e;backdrop-filter:blur(10px);
-  transition:transform .24s cubic-bezier(.2,.7,.2,1),opacity .24s}
-body.panelopen #hud{transform:translateY(105%);opacity:0;pointer-events:none}
-#hud .htitle{min-width:110px;flex:0 1 auto;max-width:34%}
-#hud h1{font-size:14px;font-weight:600;margin:0;line-height:1.25;
+
+/* Buttons share one shape: mono uppercase, 1px border, press down on click. */
+#backbtn,#openanother,#openfolder{display:inline-flex;flex:none;align-items:center;gap:8px;
+  font:500 11px/1 var(--font-mono);text-transform:uppercase;letter-spacing:.1em;
+  padding:9px 13px;background:var(--panel);color:var(--ink);border:1px solid var(--border-strong);
+  cursor:pointer;transition:border-color .15s,transform .08s,box-shadow .25s}
+#backbtn:hover,#openanother:hover{border-color:var(--accent)}
+#backbtn:active,#openanother:active,#openfolder:active{transform:translateY(1px)}
+#openfolder{background:var(--accent);color:var(--on-accent);border-color:var(--accent);padding:11px 18px;font-size:12px}
+#openfolder:hover{box-shadow:0 0 0 1px var(--accent),0 0 22px rgba(var(--accent-rgb),.45)}
+
+/* Map screen chrome: hidden until body.on-map (screens.js), then laid out
+   per view from body.view-map / view-hybrid / view-list (toolbar.js). --top is
+   the toolbar's height, kept current by main.js. */
+#top,#list,#hint{display:none}
+body.on-map #top{display:block}
+body.on-map.view-hybrid #list,body.on-map.view-list #list{display:block}
+body.on-map.view-map #hint{display:block}
+
+#top{position:fixed;top:0;left:0;right:0;z-index:7;background:var(--panel);border-bottom:1px solid var(--border)}
+#top .row1{display:flex;align-items:center;gap:16px;padding:10px 16px}
+#top .mtitle{flex:1 1 auto;min-width:0}
+#top .crumb{font:10px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#hud .dest{font-size:11px;color:#8b93a3;line-height:1.35;margin-top:2px;
+#mname{font:700 16px/1.2 var(--font-title);letter-spacing:.06em;text-transform:uppercase;margin:1px 0 0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#hud .spacer{flex:1 1 auto}
-#hud .counts{display:flex;gap:6px;flex-wrap:nowrap}
-/* .c is the pill/chip, shared by the HUD counts and the panel's meta row. */
-.c{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid #262b36;color:#8b93a3;white-space:nowrap}
-.c.resolved{color:#b9d6c4;border-color:#42604f}
-.c.claimed{color:#ffd873;border-color:#8a6a20}
-.c.frontier{color:#8ad8ff;border-color:#2c6a8e}
-.c.blocked{color:#e2c3c3;border-color:#6e5252}
-.c.oos{color:#8a8496;border-color:#4a4550}
-.c.type{color:#9aa2b1;border-color:#3a4150}
-.c.undermined{color:#e06c75;border-color:#6a3b3b}
+#mname::before{content:"\25A0  ";color:var(--accent)}
+#mdest{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#top .prog{display:flex;align-items:center;gap:10px;font:11px var(--font-mono);color:var(--muted);white-space:nowrap}
+#top .bar{width:120px;height:6px;background:var(--rule)}
+#top .bar>span{display:block;height:100%;background:var(--good)}
+.seg{display:flex}
+.seg button{font:500 11px/1 var(--font-mono);text-transform:uppercase;letter-spacing:.1em;padding:9px 12px;
+  background:var(--bg);color:var(--muted);border:1px solid var(--border-strong);cursor:pointer}
+.seg button+button{border-left:none}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.seg button:active{transform:translateY(1px)}
+
+#top .row2{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;padding:0 16px 10px}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+#actchips{padding-left:14px;border-left:1px solid var(--border)}
+.fchip{display:inline-flex;align-items:center;gap:6px;font:11px/1 var(--font-mono);padding:6px 8px;
+  background:var(--bg);color:var(--ink);border:1px solid var(--border);cursor:pointer;transition:border-color .15s,background .15s}
+.fchip:hover{border-color:var(--border-strong)}
+.fchip .fcount{color:var(--muted);font-weight:500}
+.fchip.zero{opacity:.45}
+.fchip.on{border-color:var(--accent);background:rgba(var(--accent-rgb),.12)}
+.fchip.on .fcount{color:var(--accent)}
+.fchip:active{transform:translateY(1px)}
+.sq{display:inline-block;width:8px;height:8px;flex:none;background:var(--off)}
+.sq.frontier{background:var(--accent)}
+.sq.claimed{background:var(--warning)}
+.sq.resolved{background:var(--good)}
+.sq.blocked{background:transparent;border:1.5px solid var(--blocked)}
+.sq.oos{background:transparent;border:1.5px dashed var(--off)}
+#top .tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+#shown{font:11px var(--font-mono);color:var(--muted);white-space:nowrap}
+#search{font:12px var(--font-mono);width:150px;background:var(--bg);color:var(--ink);border:1px solid var(--border);
+  border-radius:0;padding:6px 8px}
+#search:focus{outline:none;border-color:var(--accent)}
+#clearf{font:500 10px/1 var(--font-mono);text-transform:uppercase;letter-spacing:.1em;padding:7px 8px;
+  background:none;color:var(--muted);border:1px solid var(--border);cursor:pointer}
+#clearf:hover{color:var(--ink);border-color:var(--accent)}
+
+#lint{margin:0 16px 10px;font:11px var(--font-mono)}
+#lint summary{cursor:pointer;color:var(--ink);list-style:none;display:flex;align-items:center;gap:8px}
+#lint summary::-webkit-details-marker{display:none}
+#lint summary::before{content:"";width:8px;height:8px;background:var(--warning)}
+#lint summary.critical::before{background:var(--critical)}
+#lint summary::after{content:"show";color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:10px}
+#lint[open] summary::after{content:"hide"}
+#lint .lrows{margin-top:6px;max-height:140px;overflow:auto;border-top:1px solid var(--rule)}
+#lint .lrow{display:flex;gap:12px;padding:4px 0;border-bottom:1px solid var(--rule)}
+#lint .lfile{color:var(--muted);flex:0 0 auto;max-width:40%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#lint .lrow.critical .lmsg{color:var(--critical)}
+
+/* The ticket list: right of the map in hybrid, the whole screen in list. */
+#list{position:fixed;top:var(--top,96px);bottom:0;right:0;z-index:5;overflow:auto;background:var(--bg);
+  padding:14px 16px 40px}
+/* In hybrid the ticket panel takes exactly the list's column, so it replaces
+   the list while open and the map stays whole. */
+body.view-hybrid #list,body.view-hybrid #panel{width:clamp(340px,38vw,560px)}
+body.view-hybrid #list{border-left:1px solid var(--border)}
+body.view-list #list{left:0}
+body.view-list .lcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}
+body.view-hybrid .lcards{display:flex;flex-direction:column;gap:6px}
+.lsec{margin-bottom:18px}
+.lhead{display:flex;align-items:center;gap:8px;width:100%;padding:4px 0 8px;background:none;border:none;cursor:pointer;
+  font:500 10px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.lhead .lcount{color:var(--ink)}
+.lhead::after{content:"hide";margin-left:auto;opacity:0;transition:opacity .15s}
+.lhead:hover::after{opacity:1}
+.lsec.shut .lhead::after{content:"show";opacity:1}
+.lsec.shut .lcards{display:none}
+.lempty{font:12px var(--font-mono);color:var(--muted);padding:12px 0}
+.tcard{display:block;width:100%;text-align:left;background:var(--panel);color:var(--ink);cursor:pointer;
+  border:1px solid var(--border);border-left:3px solid var(--off);padding:9px 12px 10px;
+  transition:border-color .15s,background .12s}
+.tcard:hover{background:rgba(var(--accent-rgb),.06);border-color:var(--border-strong)}
+.tcard.sel{border-color:var(--accent)}
+.tcard:active{transform:translateY(1px)}
+.tcard.s-frontier{border-left-color:var(--accent)}
+.tcard.s-claimed{border-left-color:var(--warning)}
+.tcard.s-resolved{border-left-color:var(--good)}
+.tcard.s-blocked{border-left-color:var(--blocked)}
+.tcard.s-resolved .ttitle,.tcard.s-oos .ttitle{color:#b7b4ab}
+.trow{display:flex;align-items:center;gap:8px;font:10px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.trow .tnum{font-size:12px;font-weight:500;color:var(--ink);letter-spacing:0}
+.trow .tspace{flex:1}
+.trow .tmode{border:1px solid var(--border);padding:2px 5px}
+.trow .tund{color:var(--critical)}
+.ttitle{font-size:13px;line-height:1.4;margin:6px 0 5px}
+.tfoot{font:11px var(--font-mono);color:var(--muted)}
+/* .c is a status tag, shared by the HUD counts and the panel: a coloured
+   square, then the word. Colour never stands alone. */
+.c{display:inline-flex;align-items:center;gap:6px;font:11px/1 var(--font-mono);
+  padding:4px 7px;border:1px solid var(--border);color:var(--ink);white-space:nowrap}
+.c::before{content:"";width:8px;height:8px;background:var(--off);flex:none}
+.c.resolved::before{background:var(--good)}
+.c.claimed::before{background:var(--warning)}
+.c.frontier::before{background:var(--accent)}
+.c.blocked::before{background:transparent;border:1.5px solid var(--blocked);width:5px;height:5px}
+.c.oos::before{background:transparent;border:1.5px dashed var(--off);width:5px;height:5px}
+.c.type{color:var(--muted)}
+.c.type::before{display:none}
+.c.undermined{color:var(--critical);border-color:var(--critical)}
+.c.undermined::before{background:var(--critical)}
 /* Edge rows in the panel ("blocked by" / "blocks"): each on its own line, a
-   plain muted label, then one pill per ticket number coloured by that
-   ticket's own status so the holdup reads at a glance. Absent edges render
-   no row at all. */
+   muted label, then one tag per ticket number marked with that ticket's own
+   status so the holdup reads at a glance. Absent edges render no row. */
 #panel .erow{display:flex;align-items:center;flex-wrap:wrap;gap:6px;width:100%}
-#panel .erow .elabel{font-size:11px;color:#8b93a3;min-width:64px}
-.tl{cursor:pointer;font-variant-numeric:tabular-nums}
-.tl:hover{text-decoration:underline}
-#hud .bar{width:150px;flex:0 0 auto;height:6px;background:#20242e;border-radius:999px;overflow:hidden}
-#hud .bar>span{display:block;height:100%;background:linear-gradient(90deg,#6d86ad,#b9c9e0)}
-#hud .legend{display:flex;gap:12px;flex-wrap:nowrap;font-size:11px;color:#8b93a3}
-#hud .legend b{font-weight:400;white-space:nowrap}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
-#panel{position:fixed;top:0;right:0;height:100%;width:min(420px,86vw);z-index:6;
-  background:rgba(12,15,21,.94);border-left:1px solid #262b36;backdrop-filter:blur(10px);
+#panel .erow .elabel{font:500 10px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);min-width:76px}
+.tl{cursor:pointer}
+.tl:hover{border-color:var(--accent)}
+
+#panel{position:fixed;top:var(--top,0);right:0;bottom:0;width:min(440px,90vw);z-index:6;
+  background:var(--panel);border-left:1px solid var(--border);
   transform:translateX(102%);transition:transform .22s cubic-bezier(.2,.7,.2,1);
   display:flex;flex-direction:column;padding:20px 22px}
+#panel::before{content:"";position:absolute;top:-1px;left:-1px;width:8px;height:8px;
+  border-top:2px solid var(--accent);border-left:2px solid var(--accent)}
 #panel.open{transform:translateX(0)}
-#panel .x{position:absolute;top:14px;right:16px;cursor:pointer;color:#8b93a3;font-size:20px;line-height:1}
-#panel .x:hover{color:#e6e9ef}
-#panel h2{font-size:17px;margin:2px 0 10px;padding-right:24px}
-#panel h2 .num{color:#8b93a3;font-variant-numeric:tabular-nums;font-weight:700;margin-right:6px}
+#panel .x{position:absolute;top:14px;right:16px;cursor:pointer;color:var(--muted);font-size:20px;line-height:1}
+#panel .x:hover{color:var(--accent)}
+#panel h2{font:500 17px/1.35 var(--font);margin:2px 0 12px;padding-right:24px}
+#panel h2 .num{font:500 15px var(--font-mono);color:var(--accent);margin-right:8px}
 #panel .meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-/* Extend the scroll area to both panel edges — right so the scrollbar rides
-   the far edge, left so the divider rule runs flush to the panel border — and
-   re-add the 22px insets as inner padding so text keeps its margins. */
-#panel .md{flex:1;overflow:auto;border-top:1px solid #262b36;padding-top:14px;
+/* Extend the scroll area to both panel edges (right so the scrollbar rides the
+   far edge, left so the rule runs flush to the panel border) and re-add the
+   22px insets as inner padding so text keeps its margins. */
+#panel .md{flex:1;overflow:auto;border-top:1px solid var(--border);padding-top:14px;
   margin-left:-22px;padding-left:22px;
-  margin-right:-22px;padding-right:22px;font-size:13px;line-height:1.65;color:#cfd4de}
+  margin-right:-22px;padding-right:22px;font-size:13px;line-height:1.65;color:#cfccc3}
 #panel .md>*:first-child{margin-top:0}
-#panel .md h1,#panel .md h2,#panel .md h3,#panel .md h4{color:#e6e9ef;line-height:1.3;margin:16px 0 8px}
-#panel .md h1{font-size:16px}
-#panel .md h2{font-size:14px;border-bottom:1px solid #20242e;padding-bottom:4px}
-#panel .md h3{font-size:13px;color:#b7bdc9}
-#panel .md h4{font-size:12px;color:#9aa2b1;text-transform:uppercase;letter-spacing:.04em}
+#panel .md h1,#panel .md h2,#panel .md h3,#panel .md h4{color:var(--ink);line-height:1.3;margin:18px 0 8px}
+#panel .md h1{font:700 15px var(--font-title);letter-spacing:.06em;text-transform:uppercase}
+#panel .md h2{font:500 13px var(--font-title);letter-spacing:.1em;text-transform:uppercase;
+  border-bottom:1px solid var(--rule);padding-bottom:4px}
+#panel .md h3{font-size:13px;font-weight:500}
+#panel .md h4{font:500 10px var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
 #panel .md p{margin:9px 0}
 #panel .md ul,#panel .md ol{margin:9px 0;padding-left:20px}
 #panel .md li{margin:3px 0}
-#panel .md code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
-  background:#20242e;padding:1px 5px;border-radius:4px;color:#d6c6a0}
-#panel .md pre{background:#0c0f15;border:1px solid #20242e;border-radius:8px;padding:12px;overflow-x:auto;margin:10px 0}
-#panel .md pre code{background:none;padding:0;color:#c8cfda;font-size:12px;line-height:1.5;white-space:pre}
-#panel .md a,#panel .md .xlink{color:#7fa8ff;text-decoration:none;cursor:pointer}
-#panel .md a:hover,#panel .md .xlink:hover{text-decoration:underline}
-#panel .md strong{color:#e6e9ef;font-weight:700}
-#panel .md em{color:#d3b98a;font-style:italic}
-#panel .md hr{border:none;border-top:1px solid #262b36;margin:14px 0}
-#panel .md blockquote{border-left:3px solid #3a4150;margin:9px 0;padding:2px 0 2px 12px;color:#9aa2b1}
-#hint{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:5;font-size:11px;color:#4b5261}
-/* Top-left chrome in map view: the way back, then which project this map
-   belongs to — the HUD names the map, this names its home. */
-#topleft{position:fixed;top:16px;left:16px;z-index:7;display:none;align-items:center;gap:10px}
-#backbtn{display:flex;align-items:center;
-  background:rgba(14,18,26,.72);border:1px solid #262b36;border-radius:999px;color:#b7bdc9;
-  padding:7px 14px;font-size:12px;cursor:pointer;backdrop-filter:blur(8px)}
-#backbtn:hover{color:#e6e9ef;border-color:#3a4356}
-#projtag{font-size:12px;color:#8b93a3;max-width:32vw;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* splash + map list overlays, floating over the live starfield */
-#splash,#maplist{position:fixed;inset:0;z-index:10;display:none;
-  background:radial-gradient(80% 80% at 50% 30%,rgba(8,11,18,.6),rgba(5,7,13,.92))}
+#panel .md code{font-family:var(--font-mono);font-size:12px;color:var(--accent)}
+#panel .md pre{background:var(--bg);border:1px solid var(--border);padding:12px;overflow-x:auto;margin:10px 0}
+#panel .md pre code{color:var(--ink);font-size:12px;line-height:1.5;white-space:pre}
+#panel .md a,#panel .md .xlink{color:var(--ink);text-decoration:underline;text-decoration-color:var(--accent);
+  text-underline-offset:2px;cursor:pointer}
+#panel .md a:hover,#panel .md .xlink:hover{color:var(--accent)}
+#panel .md strong{color:var(--ink);font-weight:700}
+#panel .md em{font-style:italic}
+#panel .md hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+#panel .md blockquote{border-left:2px solid var(--border-strong);margin:9px 0;padding:2px 0 2px 12px;color:var(--muted)}
+
+#hint{position:fixed;top:calc(var(--top,96px) + 12px);left:16px;z-index:4;
+  font:10px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap;pointer-events:none}
+
+/* Loading: shown while a map's graph is being fetched. */
+#loading{position:fixed;inset:0;z-index:4;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  font:11px var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.12em;pointer-events:none}
+.spin{--sz:40px;position:relative;display:inline-block;width:var(--sz);height:var(--sz)}
+.spin::before{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid rgba(var(--accent-rgb),.18);
+  border-top-color:var(--accent);border-right-color:var(--accent);animation:spin .9s cubic-bezier(.2,.9,.3,1.2) infinite}
+.spin::after{content:"";position:absolute;width:6px;height:6px;left:50%;top:50%;margin:-3px;border-radius:50%;
+  background:var(--ink);animation:orbit 1.8s linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes orbit{from{transform:rotate(0) translateX(9px)}to{transform:rotate(360deg) translateX(9px)}}
+
+/* Splash and map list overlays, over the live grid. */
+#splash,#maplist{position:fixed;inset:0;z-index:10;display:none;background:rgba(14,15,16,.88)}
 #splash{align-items:center;justify-content:center}
-.splashcard{width:min(420px,90vw);text-align:center;padding:8px}
-.logo{font-size:30px;font-weight:600;letter-spacing:.02em;color:#e6e9ef;margin-bottom:26px}
-#openfolder{display:inline-block;background:#2b62d6;border:none;color:#fff;font-size:14px;
-  padding:11px 22px;border-radius:10px;cursor:pointer;box-shadow:0 4px 20px rgba(43,98,214,.35)}
-#openfolder:hover{background:#356fe6}
-.recent-h{margin:30px 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;text-align:left}
-#recents{display:flex;flex-direction:column;gap:8px}
+.splashcard{width:min(420px,90vw);padding:8px}
+.logo{font:700 30px/1 var(--font-title);letter-spacing:.08em;text-transform:uppercase;margin-bottom:24px}
+.logo::before{content:"\25A0  ";color:var(--accent)}
+.recent-h{margin:30px 0 8px;font:500 10px var(--font-mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+#recents{display:flex;flex-direction:column;border-top:1px solid var(--border-strong)}
+.muted{color:var(--muted);font:12px var(--font-mono)}
 .recent{position:relative;display:flex;align-items:center;gap:10px;text-align:left;
-  background:rgba(23,26,33,.8);border:1px solid #262b36;border-radius:10px;padding:11px 14px;cursor:pointer;color:#e6e9ef}
-.recent:hover{border-color:#3a4356;background:rgba(30,35,44,.9)}
+  background:none;border:none;border-bottom:1px solid var(--rule);padding:10px 8px;cursor:pointer;color:var(--ink);transition:background .12s}
+.recent:hover{background:rgba(var(--accent-rgb),.06)}
 .recent .rname{flex:1;font-size:13px}
 /* At rest the count sits flush against the right edge; on hover it slides aside
    and the dismiss moves into the space it vacates. The dismiss is taken out of
    flow so that while hidden it costs no layout and cannot hold that space open. */
-.recent .rmeta{font-size:11px;color:#8b93a3;transition:transform .14s cubic-bezier(.2,.7,.2,1)}
+.recent .rmeta{font:11px var(--font-mono);color:var(--muted);transition:transform .14s cubic-bezier(.2,.7,.2,1)}
 .recent:hover .rmeta{transform:translateX(-22px)}
-.recent .rx{position:absolute;right:12px;top:0;bottom:0;display:flex;align-items:center;
-  padding:0 4px;opacity:0;transition:opacity .14s,color .12s;
-  color:#6b7280;font-size:16px;line-height:1}
+.recent .rx{position:absolute;right:8px;top:0;bottom:0;display:flex;align-items:center;
+  padding:0 4px;opacity:0;transition:opacity .14s,color .12s;color:var(--muted);font-size:16px;line-height:1}
 .recent:hover .rx{opacity:1}
-.recent .rx:hover{color:#e6e9ef}
-#maplist{flex-direction:column;padding:56px 40px 40px;overflow:auto}
+.recent .rx:hover{color:var(--critical)}
+#maplist{flex-direction:column;padding:40px 32px;overflow:auto}
 /* Title and the way out sit side by side at the top-left, so the escape hatch
    reads as attached to the project rather than floating in the corner. */
-.listtop{display:flex;align-items:center;gap:14px;
-  max-width:1000px;margin:0 auto 26px;width:100%}
-#projname{font-size:22px;font-weight:600;color:#e6e9ef}
-#openanother{background:none;border:1px solid #262b36;color:#b7bdc9;border-radius:999px;padding:7px 14px;font-size:12px;cursor:pointer}
-#openanother:hover{color:#e6e9ef;border-color:#3a4356}
-#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;
+.listtop{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  max-width:1000px;margin:0 auto 20px;width:100%;padding-bottom:14px;border-bottom:1px solid var(--border)}
+#projname{font:700 22px/1.1 var(--font-title);letter-spacing:.06em;text-transform:uppercase}
+#projname::before{content:"\25A0  ";color:var(--accent)}
+#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;
   max-width:1000px;margin:0 auto;width:100%}
-.card{text-align:left;background:rgba(23,26,33,.82);border:1px solid #262b36;border-radius:14px;
-  padding:18px;cursor:pointer;transition:transform .08s,border-color .08s}
-.card:hover{transform:translateY(-2px);border-color:#4f8cff}
-.card .cname{font-size:15px;font-weight:600;color:#e6e9ef;line-height:1.35;margin-bottom:10px;
+.card{position:relative;text-align:left;background:var(--panel);border:1px solid var(--border);
+  padding:16px 18px;cursor:pointer;color:var(--ink);transition:border-color .15s,transform .08s}
+.card::before{content:"";position:absolute;top:-1px;left:-1px;width:8px;height:8px;
+  border-top:2px solid var(--accent);border-left:2px solid var(--accent)}
+.card:hover{border-color:var(--accent)}
+.card:active{transform:translateY(1px)}
+.card .cname{font-size:15px;font-weight:500;line-height:1.35;margin-bottom:10px;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.card .cmeta{display:flex;gap:10px;font-size:12px;color:#8b93a3;margin-bottom:10px}
-.card .cfront{color:#8ad8ff}
-.card .cbar{height:5px;background:#20242e;border-radius:999px;overflow:hidden}
-.card .cbar>span{display:block;height:100%;background:linear-gradient(90deg,#6d86ad,#b9c9e0)}
+.card .cmeta{display:flex;gap:12px;font:12px var(--font-mono);color:var(--muted);margin-bottom:10px}
+.card .cfront{color:var(--ink)}
+.card .cfront::before{content:"";display:inline-block;width:8px;height:8px;background:var(--accent);margin-right:6px}
+.card .cbar{height:4px;background:var(--rule)}
+.card .cbar>span{display:block;height:100%;background:var(--good)}
+
+/* Below 760px (NARROW in state.js) hybrid has no room: the Hybrid button goes
+   and the list shows alone. */
+@media (max-width:759px){
+  #viewseg [data-view=hybrid]{display:none}
+  #top .prog{display:none}
+  #actchips{padding-left:0;border-left:none}
+  #top .tools{margin-left:0;width:100%}
+  #search{flex:1}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .spin::before,.spin::after{animation-duration:3s}
+}
