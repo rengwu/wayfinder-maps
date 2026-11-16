@@ -6,8 +6,9 @@ A read-only CLI and viewer for
 [wayfinder](https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder)
 maps — the markdown planning memory an agent leaves under `.plan/<effort>/` as it charts
 a large effort as a graph of investigation tickets. The wayfinder method and its skills
-were created by [Matt Pocock](https://github.com/mattpocock); this repo adapts them and
-adds the tooling.
+were created by [Matt Pocock](https://github.com/mattpocock). The CLI and viewer were
+created by John Goh in [rengwu/wayfinder-maps](https://github.com/rengwu/wayfinder-maps);
+this fork extends both so a map carries on into implementation.
 
 - **`wayfinder-maps status <dir>`** — what is resolved, what is in flight, and what is ready
   to claim (the _frontier_: open, unclaimed, every blocker resolved).
@@ -34,12 +35,53 @@ Undermined — resolved on a premise that later changed:
 Fog: 5 patches, 1 anchored to a ticket
 ```
 
+## Rengwu's wayfinder CLI vs RamsesKools' wayfinder CLI
+
+[rengwu/wayfinder-maps](https://github.com/rengwu/wayfinder-maps) stops where the
+decisions stop: a map is done when the way is clear, and the build happens somewhere else.
+This fork lets a map carry on into the implementation, so the whole journey lives in one
+graph. A map with no implement tickets reads exactly as it does upstream.
+
+What this fork adds:
+
+- **`implement` tickets.** Each one ships one PR in one repo, with a `## What to build`
+  body plus acceptance criteria, and resolves when its PR merges. The new `pr:` field links
+  that PR.
+- **Planning the implementation.** A "Plan the implementation of X" grilling ticket breaks
+  the destination into implement tickets, following
+  [`IMPLEMENT-PLAN.md`](skills/wayfinder-maps/IMPLEMENT-PLAN.md).
+- **`## Implemented so far`.** It lists shipped work, next to Decisions-so-far.
+- **AFK or HITL per ticket.** Every frontier ticket says whether an agent can take it
+  alone or it needs you, so a hub session can run the AFK ones in parallel workers.
+  A task marks itself with `afk: true`.
+- **Lint and graph JSON** know about all of the above.
+- **`wayfinder-pull`** imports the `wayfinder:implement` and `wayfinder:afk` labels and
+  the linked PRs, and runs on macOS's stock `sed`.
+
+Still in progress: the viewer's look for implement tickets and the AFK/HITL frontier,
+and the matching `status` output. The [design record](docs/implement-phase-design.md) has
+the full plan.
+
+### Why these additions
+
+Wayfinder exists because planning and deciding don't always fit in one session. I think
+the same holds for implementation:
+
+1. Some of the fog only clears once you start building. An implementation regularly turns
+   up new questions that need a grilling, research or a prototype, and those belong on
+   the same map rather than in a fresh plan.
+2. I like tracking progress on the visual map, and an implementation too big for one
+   session deserves that view as well.
+
+So one map now tracks the decisions and the implementation, all the way until the work is
+done.
+
 ## Install
 
 ### Skills, as a Claude Code plugin
 
 ```
-/plugin marketplace add rengwu/wayfinder-maps
+/plugin marketplace add RamsesKools/wayfinder-maps
 /plugin install wayfinder-maps@wayfinder-maps
 ```
 
@@ -58,7 +100,7 @@ You may include any of the extras under [`skills/.optional/`](skills/.optional/)
 
 ### The binary
 
-- Download from [Releases](https://github.com/rengwu/wayfinder-maps/releases) — no Go
+- Download from [Releases](https://github.com/RamsesKools/wayfinder-maps/releases) — no Go
   toolchain needed, native window and folder dialog on all three platforms. macOS uses
   WKWebView (part of the OS); Windows uses WebView2 (ships with Windows 10/11); the
   Linux archive bundles a small helper that binds the system webkit —
@@ -67,7 +109,7 @@ You may include any of the extras under [`skills/.optional/`](skills/.optional/)
   installed at all, even headless. The macOS and Linux archives also carry two
   double-clickable launchers — `wayfinder-app` opens the native window, `wayfinder-web`
   starts the server and opens your browser — no terminal needed (`.command` on macOS).
-- `go install github.com/rengwu/wayfinder-maps/cmd/wayfinder-maps@latest`
+- `go install github.com/RamsesKools/wayfinder-maps/cmd/wayfinder-maps@latest`
 
 Skill and binary are independent — each just reads the on-disk contract.
 

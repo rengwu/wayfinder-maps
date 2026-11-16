@@ -1,4 +1,4 @@
-module github.com/rengwu/wayfinder-maps
+module github.com/RamsesKools/wayfinder-maps
 
 go 1.26
 

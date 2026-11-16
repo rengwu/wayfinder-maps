@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rengwu/wayfinder-maps/internal/wayfinder"
+	"github.com/RamsesKools/wayfinder-maps/internal/wayfinder"
 )
 
 const usage = `wayfinder-maps — inspect a wayfinder map

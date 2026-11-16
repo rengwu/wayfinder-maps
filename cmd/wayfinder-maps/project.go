@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/rengwu/wayfinder-maps/internal/wayfinder"
+	"github.com/RamsesKools/wayfinder-maps/internal/wayfinder"
 )
 
 // mapInfo is a one-line summary of a wayfinder map, for the picker's card list.
