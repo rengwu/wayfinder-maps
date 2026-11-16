@@ -3,7 +3,7 @@
 // the camera easing, and the map fade-in/out transition.
 import {S, ctx, dpr} from "./state.js";
 import {mod, clamp, hexA, pad2, mulberry32} from "./util.js";
-import {LABELCOL, col} from "./theme.js";
+import {LABELCOL, STATION, AFKCOL, HITLCOL, GLYPH, col} from "./theme.js";
 import {drawFog, drawFogLabels} from "./fog.js";
 
 var EASE = 0.28;    // cam eases toward goal each frame
@@ -48,6 +48,44 @@ function drawStars(W, H) {
     }
   });
   ctx.globalAlpha = 1;
+}
+
+// --- stations, glyphs, belt ------------------------------------------------
+var GP = {afk: new Path2D(GLYPH.afk), hitl: new Path2D(GLYPH.hitl)};
+
+function hexPath(x, y, R) {
+  ctx.beginPath();
+  for (var k = 0; k < 6; k++) {
+    var a = -Math.PI / 2 + k * Math.PI / 3, px = x + Math.cos(a) * R, py = y + Math.sin(a) * R;
+    if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+  }
+  ctx.closePath();
+}
+
+function drawStation(n, c, x, y, en) {
+  var R = c.r * 1.15 * (0.4 + 0.6 * en);
+  var g = ctx.createRadialGradient(x, y, 0, x, y, R);
+  g.addColorStop(0, hexA(c.core, 1)); g.addColorStop(0.65, hexA(c.core, 0.94)); g.addColorStop(1, hexA(c.glow, 0.95));
+  hexPath(x, y, R); ctx.fillStyle = g; ctx.fill();
+  hexPath(x, y, R * 0.5); ctx.strokeStyle = "rgba(5,7,13,0.35)"; ctx.lineWidth = 1; ctx.stroke();
+  var live = n.status === "frontier" || n.status === "claimed";
+  hexPath(x, y, R + 4); ctx.strokeStyle = hexA(STATION, (live ? 0.7 : 0.4) * en); ctx.lineWidth = 1.2; ctx.stroke();
+}
+
+function drawWho(n, c, x, y, en) {
+  var gx = x + c.r + 9, gy = y - c.r - 9, color = n.afk ? AFKCOL : HITLCOL;
+  ctx.fillStyle = "rgba(5,7,13," + (0.8 * en) + ")"; ctx.beginPath(); ctx.arc(gx, gy, 7.6, 0, 6.2831853); ctx.fill();
+  ctx.strokeStyle = hexA(color, 0.5 * en); ctx.lineWidth = 1; ctx.stroke();
+  ctx.save(); ctx.translate(gx - 5, gy - 5); ctx.fillStyle = hexA(color, 0.95 * en);
+  ctx.fill(n.afk ? GP.afk : GP.hitl, "evenodd"); ctx.restore();
+}
+
+function drawBelt() {
+  var sum = 0, cnt = 0;
+  S.nodes.forEach(function(n) { if (n.kind === "implement") { sum += Math.hypot(n.px, n.py); cnt++; } });
+  if (!cnt) return;
+  ctx.strokeStyle = hexA(STATION, 0.16); ctx.lineWidth = 1.4; ctx.setLineDash([3, 12]);
+  ctx.beginPath(); ctx.arc(0, 0, sum / cnt, 0, 6.2831853); ctx.stroke(); ctx.setLineDash([]);
 }
 
 // --- nodes, edges, labels ---------------------------------------------------
@@ -110,14 +148,17 @@ function drawNode(n) {
   var g = ctx.createRadialGradient(x, y, 0, x, y, gr);
   g.addColorStop(0, hexA(c.glow, Math.min(1, (0.85 * pulse + fl * 0.5) * en))); g.addColorStop(0.4, hexA(c.glow, 0.22 * pulse * en)); g.addColorStop(1, hexA(c.glow, 0));
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, gr, 0, 6.2831853); ctx.fill();
-  // Core: solid to ~0.6 of its radius, then feathered to nothing over the outer
-  // 40%. A hard-edged disc reads as a flat sticker against the near-black sky;
-  // letting the rim fall off makes the star look lit from within.
-  var cr = c.r * (0.4 + 0.6 * en);
-  var cg = ctx.createRadialGradient(x, y, 0, x, y, cr * 1.35);
-  cg.addColorStop(0, hexA(c.core, 1)); cg.addColorStop(0.6, hexA(c.core, 0.92));
-  cg.addColorStop(0.82, hexA(c.core, 0.45)); cg.addColorStop(1, hexA(c.core, 0));
-  ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(x, y, cr * 1.35, 0, 6.2831853); ctx.fill();
+  if (n.kind === "implement") drawStation(n, c, x, y, en);
+  else {
+    // Core: solid to ~0.6 of its radius, then feathered to nothing over the outer
+    // 40%. A hard-edged disc reads as a flat sticker against the near-black sky;
+    // letting the rim fall off makes the star look lit from within.
+    var cr = c.r * (0.4 + 0.6 * en);
+    var cg = ctx.createRadialGradient(x, y, 0, x, y, cr * 1.35);
+    cg.addColorStop(0, hexA(c.core, 1)); cg.addColorStop(0.6, hexA(c.core, 0.92));
+    cg.addColorStop(0.82, hexA(c.core, 0.45)); cg.addColorStop(1, hexA(c.core, 0));
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(x, y, cr * 1.35, 0, 6.2831853); ctx.fill();
+  }
   // Flare: an expanding ring pulse marking a just-changed status.
   if (fl > 0) { ctx.strokeStyle = hexA(c.core, fl * 0.7); ctx.lineWidth = 1.5 + 2 * fl; ctx.beginPath(); ctx.arc(x, y, c.r + (1 - fl) * 40, 0, 6.2831853); ctx.stroke(); }
   if (isC) {
@@ -134,6 +175,7 @@ function drawNode(n) {
     ctx.beginPath(); ctx.arc(x, y, c.r + 9, 0, 6.2831853); ctx.stroke();
     ctx.setLineDash([]); ctx.lineDashOffset = 0;
   }
+  if (isF && S.cam.s >= 0.25) drawWho(n, c, x, y, en);
   if (S.selected === n) { ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, c.r + 11, 0, 6.2831853); ctx.stroke(); }
 }
 
@@ -199,7 +241,7 @@ export function render() {
   ctx.fillStyle = "#05070d"; ctx.fillRect(0, 0, W, H);
   drawStars(W, H); // starfield backdrop never fades
   ctx.save(); ctx.globalAlpha = S.mapAlpha; ctx.translate(S.ec.x, S.ec.y); ctx.scale(S.ec.s, S.ec.s);
-  drawFog(); S.edges.forEach(drawEdge); S.nodes.forEach(drawNode);
+  drawBelt(); drawFog(); S.edges.forEach(drawEdge); S.nodes.forEach(drawNode);
   ctx.restore();
   // Labels take the fade as an argument rather than through globalAlpha: WebKit's
   // canvas ignores globalAlpha on fillText once a shadow is set, so text drawn that

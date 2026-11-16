@@ -58,8 +58,10 @@ What this fork adds:
 - **`wayfinder-pull`** imports the `wayfinder:implement` and `wayfinder:afk` labels and
   the linked PRs, and runs on macOS's stock `sed`.
 
-Still in progress: the viewer's look for implement tickets and the AFK/HITL frontier,
-and the matching `status` output. The [design record](docs/implement-phase-design.md) has
+- **Viewer.** Implement tickets are hexagonal stations in an outer belt, frontier tickets
+  carry an agent or person badge, and a ticket panel links its PR.
+
+Still in progress: the matching `status` output. The [design record](docs/implement-phase-design.md) has
 the full plan.
 
 ### Why these additions

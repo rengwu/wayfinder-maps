@@ -1,7 +1,8 @@
 // The slide-in ticket detail panel: header, status chips, rendered markdown
 // body, and cross-ticket links that jump the star-map to another node.
 import {S} from "./state.js";
-import {el, pad2} from "./util.js";
+import {el, pad2, glyphSvg} from "./util.js";
+import {GLYPH, AFKCOL, HITLCOL} from "./theme.js";
 import {mdToHtml} from "./markdown.js";
 
 // edgeRow builds one "blocked by" / "blocks" line: a plain label, then one
@@ -24,12 +25,26 @@ function edgeRow(label, nums) {
   return row;
 }
 
+function prChip(url) {
+  var m = url.match(/\/pull\/(\d+)/);
+  var a = el("a", "c pr", m ? "PR #" + m[1] : "PR");
+  a.href = url; a.target = "_blank"; a.rel = "noopener"; a.title = url;
+  return a;
+}
+
 export function fillPanel(n) {
   var p = document.getElementById("panel");
   var h = p.querySelector("h2"); h.innerHTML = ""; h.appendChild(el("span", "num", pad2(n.num))); h.appendChild(document.createTextNode(n.title));
   var meta = p.querySelector(".meta"); meta.innerHTML = "";
   meta.appendChild(el("span", "c " + (n.status === "out_of_scope" ? "oos" : n.status), n.status.replace(/_/g, " ")));
-  if (n.type) meta.appendChild(el("span", "c type", n.type));
+  if (n.type) meta.appendChild(el("span", "c type" + (n.kind === "implement" ? " impl" : ""), n.type));
+  if (n.status === "frontier") {
+    var who = el("span", "c who");
+    who.appendChild(glyphSvg(n.afk ? GLYPH.afk : GLYPH.hitl, n.afk ? AFKCOL : HITLCOL));
+    who.appendChild(document.createTextNode(n.afk ? "agent can take" : "needs you"));
+    meta.appendChild(who);
+  }
+  if (n.pr) meta.appendChild(prChip(n.pr));
   if (n.undermined) meta.appendChild(el("span", "c undermined", "undermined"));
   if ((n.blockers || []).length) meta.appendChild(edgeRow("blocked by", n.blockers));
   var blocks = S.nodes.filter(function(o) { return (o.blockers || []).indexOf(n.num) >= 0; })
@@ -53,6 +68,18 @@ export function closePanel() {
 }
 
 document.querySelector("#panel .x").onclick = closePanel;
+
+// The native window drops target=_blank navigations (window.open yields null),
+// so hand the URL to the server, which opens the default browser.
+function openExternal(url) {
+  var w = window.open(url, "_blank");
+  if (w) { w.opener = null; return; }
+  fetch("/api/open", {method: "POST", headers: {"X-Wayfinder": "1"}, body: url}).catch(function() {});
+}
+document.getElementById("panel").addEventListener("click", function(ev) {
+  var a = ev.target.closest ? ev.target.closest("a[target='_blank']") : null;
+  if (a && /^https?:\/\//.test(a.href)) { ev.preventDefault(); openExternal(a.href); }
+});
 // Cross-ticket links in the rendered body jump the star-map to that node.
 document.querySelector("#panel .md").addEventListener("click", function(ev) {
   var a = ev.target.closest ? ev.target.closest("[data-goto]") : null;

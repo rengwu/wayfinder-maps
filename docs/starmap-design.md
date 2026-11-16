@@ -49,7 +49,15 @@ same data, exactly as the first web UI was. Re-read-on-refresh stays. The
    - out-of-scope → cold gray husk
    - undermined → a cracked red halo over whatever it is
    Ticket type (grilling/prototype/research/task) appears only as a tag on the
-   label and in the detail panel. Rejected type-as-celestial-body (richer, more
+   label and in the detail panel. Two additions ride on top of status (see
+   [the implement phase](implement-phase-design.md)):
+   - implement tickets are **stations**: a lit hexagon in a teal frame instead of a
+     round star, laid out in an outer belt past the decision rings (a faint dotted
+     orbit marks it). Status colours, glow, pulse and rings keep their meaning.
+   - a frontier ticket carries a small badge at its upper right: a robot when an
+     agent can take it alone, a person when it needs the human.
+
+   Rejected type-as-celestial-body (richer, more
    Star-Citizen, but two visual languages to learn — deferred as a possible v2)
    and uniform stars (loses the at-a-glance status read the tool exists for).
 
@@ -69,8 +77,9 @@ same data, exactly as the first web UI was. Re-read-on-refresh stays. The
    tool).
 
 7. **Context: full HUD + Fog as rim nebula; decisions fold into the stars.**
-   Counts + progress are an RTS resource bar; the Destination is named in the HUD
-   and anchors the bright core the layout radiates from. Fog patches render as
+   Counts + progress are an RTS resource bar (the frontier reads "agents can take"
+   and "needs you"; with implement tickets the counts split into a decisions row
+   and an implement row); the Destination is named in the HUD and anchors the bright core the layout radiates from. Fog patches render as
    faint nebulae drifting at the map's edge, clickable to read the patch, with a
    dashed tether to their anchor ticket when they have one. Decisions-so-far stops
    being a separate list — a resolved star *is* a decision, and its one-line gist
