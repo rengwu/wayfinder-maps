@@ -212,8 +212,15 @@ Two adjustments make the round trip parse. Headings inside a resolve comment are
 level, since a comment opening with its own `##` would otherwise end the `## Answer` section
 before any prose landed and leave the ticket unresolved. And the map body's ticket references
 — issue URLs — are rewritten to `./tickets/NN-<slug>.md`, which is the only form
-Decisions-so-far is scanned for; `## Decisions so far` and `## Out of scope` are generated
-only when the map body carries no section of that name.
+Decisions-so-far is scanned for; `## Decisions so far`, `## Implemented so far` and
+`## Out of scope` are generated only when the map body carries no section of that name.
+
+The label `wayfinder:implement` makes a ticket `type: implement`, and `wayfinder:afk` writes
+`afk: true` (meaningful on a task only). For an implement issue the script reads its linked
+pull requests and writes `pr: <url>`, preferring a merged one; more than one linked PR prints
+a warning, since an implement ticket ships one PR. A closed implement issue with no comment
+gets the answer `Shipped in <PR url>.` and is listed under Implemented so far rather than
+Decisions so far. The script runs on macOS's stock `sed`.
 
 The mirror is one-directional and is a snapshot: claiming or resolving in the viewer changes
 nothing in the tracker, and a change made there shows up on the next pull. `undermined_by`
