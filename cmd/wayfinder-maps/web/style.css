@@ -29,6 +29,20 @@ body.panelopen #hud{transform:translateY(105%);opacity:0;pointer-events:none}
 .c.oos{color:#8a8496;border-color:#4a4550}
 .c.type{color:#9aa2b1;border-color:#3a4150}
 .c.undermined{color:#e06c75;border-color:#6a3b3b}
+.c.type.impl{color:#86f5d2;border-color:#2f8f7c}
+.c.who{color:#cfd4de;border-color:#3a4150}
+a.c.pr{color:#86f5d2;border-color:#2f8f7c;text-decoration:none;cursor:pointer}
+a.c.pr:hover{background:rgba(95,209,192,.12);border-color:#5fd1c0}
+.glyph{width:10px;height:10px;margin-right:5px;vertical-align:-1px}
+/* With implement tickets the counts split in two: the frontier (who can take
+   it) on the left, one row per kind on the right. */
+#hud .counts .cfront,#hud .counts .ckinds{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+#hud .counts{align-items:center}
+#hud.hasimpl .counts{gap:14px}
+#hud .ckinds{padding-left:14px;border-left:1px solid #20242e}
+#hud .krow{display:flex;align-items:center;gap:6px}
+#hud .klabel{display:flex;align-items:center;min-width:72px;font-size:11px;color:#8b93a3}
+#hud .klabel .glyph{margin-right:4px}
 /* Edge rows in the panel ("blocked by" / "blocks"): each on its own line, a
    plain muted label, then one pill per ticket number coloured by that
    ticket's own status so the holdup reads at a glance. Absent edges render
@@ -37,10 +51,12 @@ body.panelopen #hud{transform:translateY(105%);opacity:0;pointer-events:none}
 #panel .erow .elabel{font-size:11px;color:#8b93a3;min-width:64px}
 .tl{cursor:pointer;font-variant-numeric:tabular-nums}
 .tl:hover{text-decoration:underline}
-#hud .bar{width:150px;flex:0 0 auto;height:6px;background:#20242e;border-radius:999px;overflow:hidden}
+#hud .bar{flex:0 1 150px;min-width:48px;height:6px;background:#20242e;border-radius:999px;overflow:hidden}
 #hud .bar>span{display:block;height:100%;background:linear-gradient(90deg,#6d86ad,#b9c9e0)}
 #hud .legend{display:flex;gap:12px;flex-wrap:nowrap;font-size:11px;color:#8b93a3}
 #hud .legend b{font-weight:400;white-space:nowrap}
+#hud .legend .glyph{margin-right:4px}
+#hud.hasimpl .legend{flex-wrap:wrap;gap:4px 12px;max-width:230px}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
 #panel{position:fixed;top:0;right:0;height:100%;width:min(420px,86vw);z-index:6;
   background:rgba(12,15,21,.94);border-left:1px solid #262b36;backdrop-filter:blur(10px);
@@ -67,6 +83,8 @@ body.panelopen #hud{transform:translateY(105%);opacity:0;pointer-events:none}
 #panel .md p{margin:9px 0}
 #panel .md ul,#panel .md ol{margin:9px 0;padding-left:20px}
 #panel .md li{margin:3px 0}
+#panel .md li.task{list-style:none;margin-left:-20px}
+#panel .md li.task input{margin:0 6px 0 0;vertical-align:-1px;accent-color:#5fd1c0}
 #panel .md code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
   background:#20242e;padding:1px 5px;border-radius:4px;color:#d6c6a0}
 #panel .md pre{background:#0c0f15;border:1px solid #20242e;border-radius:8px;padding:12px;overflow-x:auto;margin:10px 0}

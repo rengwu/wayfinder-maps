@@ -2,6 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/RamsesKools/wayfinder-maps/internal/wayfinder"
@@ -87,5 +90,41 @@ func TestGraphJSONKeepsExistingFieldsAndOmitsEmptyPR(t *testing.T) {
 	}
 	if _, ok := doc.Nodes[0]["pr"]; ok {
 		t.Error("empty pr should be omitted")
+	}
+}
+
+func TestOpenEndpoint(t *testing.T) {
+	var opened []string
+	old := openURL
+	openURL = func(u string) error { opened = append(opened, u); return nil }
+	t.Cleanup(func() { openURL = old })
+	h := newServer("")
+
+	do := func(method, body string, hdr bool) int {
+		req := httptest.NewRequest(method, "/api/open", strings.NewReader(body))
+		if hdr {
+			req.Header.Set("X-Wayfinder", "1")
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if c := do("POST", "https://example.com/o/r/pull/2", true); c != http.StatusNoContent {
+		t.Errorf("valid open = %d", c)
+	}
+	for name, c := range map[string]int{
+		"no header":  do("POST", "https://example.com/", false),
+		"GET":        do("GET", "https://example.com/", true),
+		"file URL":   do("POST", "file:///etc/passwd", true),
+		"javascript": do("POST", "javascript:alert(1)", true),
+		"empty":      do("POST", "", true),
+	} {
+		if c != http.StatusBadRequest {
+			t.Errorf("%s = %d, want 400", name, c)
+		}
+	}
+	if len(opened) != 1 || opened[0] != "https://example.com/o/r/pull/2" {
+		t.Errorf("opened = %v", opened)
 	}
 }

@@ -3,13 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/RamsesKools/wayfinder-maps/internal/wayfinder"
 )
+
+var openURL = openBrowser
 
 // serve runs the map viewer as a local web server, blocking until interrupted.
 // The GUI requires a working folder dialog (only Linux can lack one), checked
@@ -70,6 +74,28 @@ func newServer(initial string) http.Handler {
 	// The native macOS folder picker; returns {path:""} when cancelled.
 	mux.HandleFunc("/api/pick", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"path": pickFolder()})
+	})
+
+	// Open an http(s) link in the default browser: the native window cannot
+	// follow target=_blank. The custom header forces a CORS preflight, so a
+	// foreign page cannot trigger this by a plain cross-site POST.
+	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.Header.Get("X-Wayfinder") == "" {
+			http.Error(w, "POST with X-Wayfinder required", http.StatusBadRequest)
+			return
+		}
+		body, err := io.ReadAll(io.LimitReader(r.Body, 2048))
+		raw := strings.TrimSpace(string(body))
+		u, perr := url.Parse(raw)
+		if err != nil || perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			http.Error(w, "an http(s) URL is required", http.StatusBadRequest)
+			return
+		}
+		if err := openURL(u.String()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 
 	mux.HandleFunc("/api/recents", func(w http.ResponseWriter, r *http.Request) {
