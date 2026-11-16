@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -54,7 +55,7 @@ func main() {
 			os.Exit(2)
 		}
 		if cmd == "status" {
-			os.Exit(status(e))
+			os.Exit(status(os.Stdout, e))
 		}
 		os.Exit(lint(e))
 	case "serve":
@@ -67,23 +68,44 @@ func main() {
 	}
 }
 
-func status(e *wayfinder.Effort) int {
+func status(w io.Writer, e *wayfinder.Effort) int {
 	name := e.Map.Name
 	if name == "" {
 		name = e.Name
 	}
-	fmt.Printf("%s\n", name)
-	fmt.Printf("%d resolved · %d claimed · %d open · %d out of scope\n\n",
-		e.Count(wayfinder.StatusResolved), e.Count(wayfinder.StatusClaimed),
-		e.Count(wayfinder.StatusOpen), e.Count(wayfinder.StatusOutOfScope))
+	fmt.Fprintf(w, "%s\n", name)
+
+	var impl, decisions []*wayfinder.Ticket
+	for _, t := range e.Tickets {
+		if t.Type == wayfinder.TypeImplement {
+			impl = append(impl, t)
+		} else {
+			decisions = append(decisions, t)
+		}
+	}
+	if len(impl) == 0 {
+		fmt.Fprintf(w, "%s\n\n", counts(e.Tickets))
+	} else {
+		fmt.Fprintf(w, "Decisions:      %s\nImplementation: %s\n\n", counts(decisions), counts(impl))
+	}
 
 	frontier := e.Frontier()
 	if len(frontier) == 0 {
-		fmt.Println("Frontier: empty — no ticket is ready to claim.")
+		fmt.Fprintln(w, "Frontier: empty — no ticket is ready to claim.")
 	} else {
-		fmt.Println("Frontier — ready to claim, first by number wins:")
+		afk := 0
 		for _, t := range frontier {
-			fmt.Printf("  %02d  %-46s  %s\n", t.Num, truncate(t.Title, 46), t.Type)
+			if t.AFK() {
+				afk++
+			}
+		}
+		fmt.Fprintf(w, "Frontier — ready to claim, first by number wins (%d AFK, %d HITL):\n", afk, len(frontier)-afk)
+		for _, t := range frontier {
+			mark := "HITL"
+			if t.AFK() {
+				mark = "AFK"
+			}
+			fmt.Fprintf(w, "  %02d  %-46s  %-9s  %s\n", t.Num, truncate(t.Title, 46), t.Type, mark)
 		}
 	}
 
@@ -91,7 +113,9 @@ func status(e *wayfinder.Effort) int {
 	for _, t := range e.Tickets {
 		switch t.Status {
 		case wayfinder.StatusClaimed:
-			claimed = append(claimed, t)
+			if t.Type != wayfinder.TypeImplement {
+				claimed = append(claimed, t)
+			}
 		case wayfinder.StatusOpen:
 			if !contains(frontier, t) {
 				blocked = append(blocked, t)
@@ -100,20 +124,36 @@ func status(e *wayfinder.Effort) int {
 	}
 
 	if len(claimed) > 0 {
-		fmt.Println("\nClaimed — in flight:")
+		fmt.Fprintln(w, "\nClaimed — in flight:")
 		for _, t := range claimed {
-			who := t.ClaimedBy
-			if who == "" {
-				who = "unknown"
+			fmt.Fprintf(w, "  %02d  %-46s  by %s\n", t.Num, truncate(t.Title, 46), claimant(t))
+		}
+	}
+
+	var shipping []*wayfinder.Ticket
+	for _, t := range impl {
+		if t.Status == wayfinder.StatusClaimed || t.Status == wayfinder.StatusResolved {
+			shipping = append(shipping, t)
+		}
+	}
+	if len(shipping) > 0 {
+		fmt.Fprintln(w, "\nImplementation — in flight and shipped:")
+		for _, t := range shipping {
+			detail := "by " + claimant(t)
+			if t.Status == wayfinder.StatusResolved {
+				detail = "no pr"
+				if t.PR != "" {
+					detail = t.PR
+				}
 			}
-			fmt.Printf("  %02d  %-46s  by %s\n", t.Num, truncate(t.Title, 46), who)
+			fmt.Fprintf(w, "  %02d  %-46s  %s\n", t.Num, truncate(t.Title, 46), detail)
 		}
 	}
 
 	if len(blocked) > 0 {
-		fmt.Println("\nBlocked:")
+		fmt.Fprintln(w, "\nBlocked:")
 		for _, t := range blocked {
-			fmt.Printf("  %02d  %-46s  waits on %s\n", t.Num, truncate(t.Title, 46), nums(t.BlockedBy))
+			fmt.Fprintf(w, "  %02d  %-46s  waits on %s\n", t.Num, truncate(t.Title, 46), nums(t.BlockedBy))
 		}
 	}
 
@@ -124,9 +164,9 @@ func status(e *wayfinder.Effort) int {
 		}
 	}
 	if len(undermined) > 0 {
-		fmt.Println("\nUndermined — resolved on a premise that later changed:")
+		fmt.Fprintln(w, "\nUndermined — resolved on a premise that later changed:")
 		for _, t := range undermined {
-			fmt.Printf("  %02d  %-46s  broken by %s\n", t.Num, truncate(t.Title, 46), nums(t.UnderminedBy))
+			fmt.Fprintf(w, "  %02d  %-46s  broken by %s\n", t.Num, truncate(t.Title, 46), nums(t.UnderminedBy))
 		}
 	}
 
@@ -136,8 +176,32 @@ func status(e *wayfinder.Effort) int {
 			anchored++
 		}
 	}
-	fmt.Printf("\nFog: %d patches, %d anchored to a ticket\n", len(e.Map.Fog), anchored)
+	fmt.Fprintf(w, "\nFog: %d patches, %d anchored to a ticket\n", len(e.Map.Fog), anchored)
 	return 0
+}
+
+func counts(ts []*wayfinder.Ticket) string {
+	var n [4]int
+	for _, t := range ts {
+		switch t.Status {
+		case wayfinder.StatusResolved:
+			n[0]++
+		case wayfinder.StatusClaimed:
+			n[1]++
+		case wayfinder.StatusOpen:
+			n[2]++
+		case wayfinder.StatusOutOfScope:
+			n[3]++
+		}
+	}
+	return fmt.Sprintf("%d resolved · %d claimed · %d open · %d out of scope", n[0], n[1], n[2], n[3])
+}
+
+func claimant(t *wayfinder.Ticket) string {
+	if t.ClaimedBy == "" {
+		return "unknown"
+	}
+	return t.ClaimedBy
 }
 
 func lint(e *wayfinder.Effort) int {

@@ -11,7 +11,9 @@ created by John Goh in [rengwu/wayfinder-maps](https://github.com/rengwu/wayfind
 this fork extends both so a map carries on into implementation.
 
 - **`wayfinder-maps status <dir>`** — what is resolved, what is in flight, and what is ready
-  to claim (the _frontier_: open, unclaimed, every blocker resolved).
+  to claim (the _frontier_: open, unclaimed, every blocker resolved), each marked AFK (an
+  agent can take it) or HITL (needs you). A map with implement tickets gets separate
+  decision and implementation sections.
 - **`wayfinder-maps lint <dir>`** — does the map still tell the truth?
 - **`wayfinder-maps serve` / `app`** — the map as a star-map, in a browser or a native window
   ([design notes](docs/starmap-design.md)).
@@ -23,16 +25,37 @@ $ wayfinder-maps status ../expensif/.plan/daily-timeline
 Daily Timeline — continuous days, empty days included
 6 resolved · 0 claimed · 4 open · 0 out of scope
 
-Frontier — ready to claim, first by number wins:
-  05  Should HandleDaily's two branches converge      grilling
-  06  Contain the day-card chrome drift               grilling
-  07  The infinite-scroll island's contract           grilling
-  10  Test strategy for the date-indexed timeline     grilling
+Frontier — ready to claim, first by number wins (0 AFK, 4 HITL):
+  05  Should HandleDaily's two branches converge      grilling   HITL
+  06  Contain the day-card chrome drift               grilling   HITL
+  07  The infinite-scroll island's contract           grilling   HITL
+  10  Test strategy for the date-indexed timeline     grilling   HITL
 
 Undermined — resolved on a premise that later changed:
   02  Window size and how older days load             broken by 08
 
 Fog: 5 patches, 1 anchored to a ticket
+```
+
+A map with implement tickets splits the counts and adds the implementation part:
+
+```
+$ wayfinder-maps status .plan/daily-timeline
+Daily Timeline — continuous days, empty days included
+Decisions:      9 resolved · 0 claimed · 0 open · 0 out of scope
+Implementation: 1 resolved · 1 claimed · 2 open · 0 out of scope
+
+Frontier — ready to claim, first by number wins (1 AFK, 0 HITL):
+  14  Add the empty-day card                          implement  AFK
+
+Implementation — in flight and shipped:
+  11  Date-indexed timeline query                     https://github.com/owner/repo/pull/12
+  12  Infinite-scroll island                          by worker-1
+
+Blocked:
+  15  Wire the island to the query                    waits on 12
+
+Fog: 0 patches, 0 anchored to a ticket
 ```
 
 ## Rengwu's wayfinder CLI vs RamsesKools' wayfinder CLI
@@ -54,12 +77,15 @@ What this fork adds:
 - **AFK or HITL per ticket.** Every frontier ticket says whether an agent can take it
   alone or it needs you, so a hub session can run the AFK ones in parallel workers.
   A task marks itself with `afk: true`.
+- **`status` splits the map.** With implement tickets it counts decisions and
+  implementation separately, lists in-flight and shipped implement tickets (with their PR),
+  and marks every frontier row AFK or HITL.
 - **Lint and graph JSON** know about all of the above.
 - **`wayfinder-pull`** imports the `wayfinder:implement` and `wayfinder:afk` labels and
   the linked PRs, and runs on macOS's stock `sed`.
 
-Still in progress: the viewer's look for implement tickets and the AFK/HITL frontier,
-and the matching `status` output. The [design record](docs/implement-phase-design.md) has
+Still in progress: the viewer's look for implement tickets and the AFK/HITL frontier.
+The [design record](docs/implement-phase-design.md) has
 the full plan.
 
 ### Why these additions
