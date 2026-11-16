@@ -1,7 +1,7 @@
 # Implement phase: design record
 
 Wayfinder today is planning only: a map is done when nothing is left to decide (see "Plan, don't do" in [the skill](../skills/wayfinder-maps/SKILL.md)).
-This fork extends a map past the decisions into the implementation: a map can end in an implementation plan whose tickets carry dependencies, show what can run in parallel, link their PRs, and render distinctly in the viewer.
+This fork extends a map past the decisions into the implementation: a map can carry implement tickets that link their PRs, show which frontier tickets agents can take on their own (and so run in parallel), and render distinctly in the viewer.
 
 Skills and viewer change together, because the viewer only reads what the format contract says.
 
@@ -10,18 +10,29 @@ Skills and viewer change together, because the viewer only reads what the format
 - Real maps already override "Plan, don't do" in their Notes ("Execution is part of this map. Tickets may deliver code and data"), with no format or viewer support.
 - `task` is explicitly not for delivering the destination, so build work has no honest ticket type.
 - Upstream's handoff to implementation (`skills/.optional/to-tickets`) writes a flat `tickets.md` with title-based "Blocked by" that no tool reads.
-- `Effort.Layers()` already ranks tickets by dependency depth; for implementation that rank is a parallel wave, so most of the planning logic exists.
+- The frontier already says what can start now; it only lacks whether an agent can take a ticket alone.
 
 ## Decisions
 
 1. **New ticket type `implement`.** Same map, same graph, same derived status. An implement ticket may be `blocked_by` the decision tickets it rests on (traceability), and decisions may be blocked by implement tickets (build, validate, learn). GitHub label: `wayfinder:implement`.
-2. **Opt-in, backwards compatible.** No mode flag. A map with no implement tickets behaves exactly like today. Once it has any, the map is done when the destination is reached (all implement tickets resolved or ruled out), not merely when the way is clear.
-3. **"Plan, don't do" becomes "Plan, then implement".** Decisions first. When the decision frontier and the fog are empty (or the user says the route is clear enough), a **Plan the implementation** session breaks the destination into implement tickets. `task` keeps its narrow meaning: manual work that unblocks a decision.
-4. **Implementation planning rules** live in a new `skills/wayfinder-maps/IMPLEMENT-PLAN.md`, ported from `skills/.optional/to-tickets`: vertical tracer-bullet slices, prefactor first, expand-contract for wide refactors, each ticket sized to one fresh session, quiz the user on granularity and edges before creating tickets. Tickets are created and wired with the usual create-then-wire pass.
-5. **PR links: `prs: [<url>, ...]`** in implement ticket frontmatter. URLs only; PR state is not stored. An implement ticket is resolved, as always, by an `## Answer` with prose: what shipped plus the PR link. Resolve on merge.
-6. **Map index: new `## Implemented so far`** section, the counterpart of `## Decisions so far`: one line per resolved implement ticket, gist plus link. Decisions so far never lists implement tickets and vice versa.
-7. **Parallel work vs "one session at a time".** The markdown adapter still allows one writer. Rule: only the coordinating (hub) session writes `.plan/`. It claims an implement ticket when it dispatches a worker, and records answer, `prs` and the index line after the merge. Workers never edit the map. GitHub-backed maps get this natively (assignee = claim, atomic ids).
-8. **Waves.** A ticket's wave is its rank in the implement-only subgraph (decision blockers ignored, they are satisfied before the implementation starts or show as gates). Same wave and no edge between them means parallelizable. The implement frontier is "what workers can start now".
+2. **Opt-in, backwards compatible.** No mode flag. A map with no implement tickets behaves exactly like today. Once it has any, the map is done when the destination is reached (no open or claimed tickets left), not merely when the way is clear.
+3. **"Plan, don't do" becomes "Plan, then implement".** Settling the specs before implementing is encouraged, not required: not every decision can be known up front, and an implementation that raises new questions is normal. `task` keeps its narrow meaning: manual work that unblocks a decision.
+4. **Implementation is planned in a ticket.** A grilling ticket "Plan the implementation of X", `blocked_by` the decisions it rests on, reaches the frontier like any other. Resolving it follows `skills/wayfinder-maps/IMPLEMENT-PLAN.md` and creates the implement tickets (create-then-wire). A map may hold several, one per part of the destination. No new invocation mode; one ticket per session holds.
+5. **IMPLEMENT-PLAN.md** is ported from `skills/.optional/to-tickets`: vertical tracer-bullet slices, prefactor first, expand-contract for wide refactors, each ticket sized to one fresh session, quiz the user on granularity and edges before creating tickets.
+6. **Implement ticket body: `## What to build`** (end-to-end behaviour) plus `- [ ]` acceptance criteria, instead of `## Question`. `## Answer` (what shipped plus the PR link) closes it as usual.
+7. **AFK or HITL is readable per ticket.** Derived from type: research and implement are AFK, grilling and prototype are HITL, task is HITL unless it sets `afk: true`. `afk` is meaningful only on task. The frontier, shown per ticket as "agent can take" or "needs you", is what tells a hub which tickets can run in parallel. GitHub: label `wayfinder:afk` on a task.
+8. **No waves.** Dropped: the frontier plus the AFK marker answers "what can run in parallel now", and dependency-aware breakdown stays a habit the skill encourages for every ticket type, not a computed field.
+9. **Parallel work: hub claims, workers write their own ticket.**
+   - The hub (coordinating session) owns ticket numbers and `map.md`. It claims a ticket on main before dispatching a worker.
+   - A worker writes only its own ticket file, on its branch: `## Answer`, `prs`, ticked criteria. Questions it raises go in its Answer; it creates no tickets.
+   - The ticket resolves when the worker's PR merges, with no hub step. The hub then writes the index line and turns raised questions into tickets or fog.
+   - One ticket per session binds the worker. The hub only claims and records, so it may record many.
+   - Without a hub, a single session works one ticket and records everything itself, as today.
+   - GitHub-backed maps get this natively (assignee = claim, atomic ids).
+10. **PR links: `prs: [<url>, ...]`** in implement ticket frontmatter. URLs only; PR state is not stored. While the PR is open, main shows the ticket `claimed` with no PR link (the link lives on the branch); no new status.
+11. **Claims keep the 72h rule.** A stale implement claim is the hub's cue to check the worker or PR and refresh `claimed_at` or release it. Lint warns, never errors.
+12. **Map index: new `## Implemented so far`**, the counterpart of `## Decisions so far`: one line per resolved implement ticket, gist plus link. Decisions so far never lists implement tickets and vice versa.
+13. **Upstream-friendly.** Upstreaming is not a goal of this effort, but keep changes easy to offer to rengwu later: additive prose over rewrites, fork-only bits (URLs, notices) in their own commits.
 
 ## Format changes
 
@@ -32,6 +43,23 @@ Ticket frontmatter:
 type: implement
 blocked_by: [04, 09]
 prs: [https://github.com/owner/repo/pull/12]   # optional, implement only
+---
+
+# <Ticket title>
+
+## What to build
+
+<end-to-end behaviour>
+
+- [ ] <acceptance criterion>
+```
+
+A task an agent can drive alone:
+
+```markdown
+---
+type: task
+afk: true
 ---
 ```
 
@@ -45,64 +73,62 @@ Map body adds, after Decisions so far:
 
 ## Skills changes
 
-- `skills/wayfinder-maps/SKILL.md`: the `implement` ticket type (AFK, delivered by a worker session), "Plan, then implement", a third invocation mode **Plan the implementation**, and how working an implement ticket differs (PR, resolve on merge, hub records).
-- `skills/wayfinder-maps/TRACKER-MARKDOWN.md`: `implement` type, `prs` field, `Implemented so far`, hub-only writes, checklist additions.
-- `skills/wayfinder-maps/IMPLEMENT-PLAN.md`: new, see decision 4.
+- `skills/wayfinder-maps/SKILL.md`: the `implement` ticket type (AFK, ships a PR), "Plan, then implement", the planning ticket, AFK/HITL on the frontier, and how a hub runs AFK frontier tickets in parallel.
+- `skills/wayfinder-maps/TRACKER-MARKDOWN.md`: `implement` type, `prs` and `afk` fields, the What-to-build body, `Implemented so far`, hub and worker writes, checklist additions.
+- `skills/wayfinder-maps/IMPLEMENT-PLAN.md`: new, see decision 5.
 - `skills/README.md`: divergences from upstream; mention the implement phase.
-- `README.md`: format contract, GitHub section (`wayfinder:implement`, PR import), fork notice.
+- `README.md`: format contract, GitHub section (`wayfinder:implement`, `wayfinder:afk`, PR import), fork notice.
 - `.claude-plugin/*.json`: repository URL and description point at this fork.
 
 ## Viewer and CLI changes
 
 ### Model (`internal/wayfinder`)
 
-- `TypeImplement`; `Ticket.PRs []string`; `Effort.Waves()` over the implement subgraph; `Map.Implemented []Decision`.
+- `TypeImplement`; `Ticket.PRs []string`; `Ticket.AFK()` derived per decision 7; `Map.Implemented []Decision`.
 - Lint:
   - accept `implement`
   - error: a `prs` entry that is not an http(s) URL
   - warn: `prs` on a non-implement ticket
+  - warn: `afk` on a non-task ticket
   - warn: resolved implement ticket without `prs`
   - warn: implement ticket listed in Decisions so far, or a non-implement ticket in Implemented so far
   - the existing index checks extended to Implemented so far
 
 ### Graph JSON (`/api/graph`)
 
-- Node: `kind` (`decision` | `implement`), `prs`, `wave` (implement only).
-- Counts split per kind, plus an implement frontier count ("parallel now").
+- Node: `kind` (`decision` | `implement`), `prs`, `afk`.
+- Counts split per kind; frontier split into AFK and HITL.
 
 ### Rendering
 
 - Star-map: implement tickets get a distinct shape and hue (stations, not stars) in an outer belt past the decisions, so the whole journey is one picture. Status colours keep their meaning.
-- New **Implement view** toggle: left-to-right wave columns, cards with status and PR chips, decision blockers as faded gates on the left. One column is literally "what can run in parallel".
-- HUD: decision and implement counts separately; "parallel now".
+- Frontier tickets show whether an agent can take them or they need you.
+- HUD: decision and implement counts separately; frontier as "agents can take" and "needs you".
 - Panel: PR chips that open the PR.
 
 ### CLI
 
-- `status`: decisions and implementation as separate sections.
-- New `waves <effort-dir> [--json]`: implement tickets per wave with status and PRs, for a hub deciding which workers to start.
+- `status`: decisions and implementation as separate sections; each frontier ticket marked AFK or HITL, so a hub can see which can run in parallel.
 
 ### GitHub importer (`scripts/wayfinder-pull`)
 
-- `wayfinder:implement` label maps to `type: implement`.
+- `wayfinder:implement` label maps to `type: implement`; `wayfinder:afk` maps to `afk: true`.
 - Fetch `closedByPullRequestsReferences` (GraphQL) per implement issue and write `prs:`.
-- A closed implement issue with no comment gets a synthesized answer ("Shipped in <PR url>"), so it reads as resolved.
-- Keep it portable to macOS BSD `sed` (`sed -E`, no `\+`, no `\b`).
+- A closed implement issue with no comment gets a synthesized answer (`Shipped in <PR url>`), so it reads as resolved.
+- Keep it portable to macOS BSD `sed` (`sed -E`, no `\+`, no `\b`). The script currently uses both, in `slugify` and the URL rewrites.
 
 ## Work breakdown
 
-| Wave | Ticket | Blocked by |
-| --- | --- | --- |
-| 1 | A. Format contract: SKILL.md, TRACKER-MARKDOWN.md, IMPLEMENT-PLAN.md, README format section | none |
-| 2 | B. Model: parse, lint, `Waves()`, graph JSON, Go tests | A |
-| 2 | C. `wayfinder-pull`: label and PR import | A |
-| 3 | D. Rendering: stations, Implement view, HUD, PR chips | B |
-| 3 | E. CLI: `status` split and `waves` | B |
-| 4 | F. Fixture map exercising every case, verified in the viewer (`.claude/skills/verify`) | D, E |
-| 4 | G. Release: version bump, goreleaser under this fork, install docs | D, E, C |
+| Ticket | Blocked by |
+| --- | --- |
+| A. Format contract: SKILL.md, TRACKER-MARKDOWN.md, IMPLEMENT-PLAN.md, README format section | none |
+| B. Model: parse, lint, `AFK()`, graph JSON, Go tests | A |
+| C. `wayfinder-pull`: labels, PR import, BSD sed | A |
+| D. Rendering: stations, AFK/HITL frontier, HUD, PR chips | B |
+| E. CLI: `status` split and AFK/HITL frontier | B |
+| F. Fixture map exercising every case, verified in the viewer (`.claude/skills/verify`) | D, E |
+| G. Release: version bump, plugin URLs, goreleaser under this fork, install docs, fork notice | D, E, C |
 
-## Open questions
+## Out of scope
 
-- Does `wave` also need a manual override (e.g. two independent tickets that must not run at once because they touch the same files)? Leaning no: model that as a `blocked_by` edge.
-- Should an implement ticket with an open (unmerged) PR read as its own status, or stay `claimed`? Leaning `claimed` plus a PR chip; no new stored state.
-- Offer this upstream to rengwu once it has been used on a real map?
+- Offering this upstream to rengwu. Revisit after the fork has carried one real map through implementation (see decision 13).
