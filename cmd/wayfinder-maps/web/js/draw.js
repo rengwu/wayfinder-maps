@@ -63,13 +63,13 @@ function hexPath(x, y, R) {
 }
 
 function drawStation(n, c, x, y, en) {
-  var R = c.r * 1.15 * (0.4 + 0.6 * en);
+  var boost = Math.max(1, 0.5 / S.ec.s), R = c.r * 1.15 * boost * (0.4 + 0.6 * en);
   var g = ctx.createRadialGradient(x, y, 0, x, y, R);
   g.addColorStop(0, hexA(c.core, 1)); g.addColorStop(0.65, hexA(c.core, 0.94)); g.addColorStop(1, hexA(c.glow, 0.95));
   hexPath(x, y, R); ctx.fillStyle = g; ctx.fill();
   hexPath(x, y, R * 0.5); ctx.strokeStyle = "rgba(5,7,13,0.35)"; ctx.lineWidth = 1; ctx.stroke();
   var live = n.status === "frontier" || n.status === "claimed";
-  hexPath(x, y, R + 4); ctx.strokeStyle = hexA(STATION, (live ? 0.7 : 0.4) * en); ctx.lineWidth = 1.2; ctx.stroke();
+  hexPath(x, y, R + 4 * boost); ctx.strokeStyle = hexA(STATION, (live ? 0.7 : 0.4) * en); ctx.lineWidth = 1.2; ctx.stroke();
 }
 
 function drawWho(n, c, x, y, en) {
@@ -84,7 +84,7 @@ function drawBelt() {
   var sum = 0, cnt = 0;
   S.nodes.forEach(function(n) { if (n.kind === "implement") { sum += Math.hypot(n.px, n.py); cnt++; } });
   if (!cnt) return;
-  ctx.strokeStyle = hexA(STATION, 0.16); ctx.lineWidth = 1.4; ctx.setLineDash([3, 12]);
+  ctx.strokeStyle = hexA(STATION, 0.34); ctx.lineWidth = 1.8 / Math.max(S.ec.s, 0.3); ctx.setLineDash([4, 10]);
   ctx.beginPath(); ctx.arc(0, 0, sum / cnt, 0, 6.2831853); ctx.stroke(); ctx.setLineDash([]);
 }
 

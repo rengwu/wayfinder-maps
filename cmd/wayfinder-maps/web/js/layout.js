@@ -7,9 +7,9 @@ export function ringR(rank) { return 130 + rank * 165; }
 // Implement tickets orbit in an outer belt past the outermost decision ring.
 // Maps without implement tickets never reach the belt branch, so their layout
 // is unchanged.
-var BELT_GAP = 150, BELT_STEP = 100;
+var BELT_GAP = 160, BELT_FRAC = 0.3, BELT_STEP = 40;
 var BELT_PULL = 0.2;
-var belt = false, decDepth = 0;
+var belt = false, decDepth = 0, beltR = 0;
 // With a belt, depth is counted within each kind: a decision that waits on an
 // implement ticket would otherwise be ranked past the belt it feeds.
 function rankSpan() {
@@ -28,11 +28,29 @@ function rankSpan() {
     return (memo[n.num] = d);
   }
   S.nodes.forEach(function(n) { n._depth = depth(n); if (n.kind !== "implement") decDepth = Math.max(decDepth, n._depth); });
+  beltR = ringR(decDepth);
+}
+// The belt is a hard floor: past the outermost decision, an implement ticket is
+// pushed back out to its radius and keeps its angle, so edges only steer it around.
+function clampBelt(list) {
+  if (!belt) return;
+  beltR = ringR(decDepth);
+  S.nodes.forEach(function(n) { if (n.kind !== "implement") beltR = Math.max(beltR, Math.hypot(n.x, n.y)); });
+  list.forEach(function(n) {
+    if (n.kind !== "implement") return;
+    var d = Math.hypot(n.x, n.y) || 0.01, R = targetR(n);
+    if (d < R) { n.x *= R / d; n.y *= R / d; }
+  });
+}
+function recentre() {
+  var cx = 0, cy = 0, k = 0;
+  S.nodes.forEach(function(n) { if (n.kind !== "implement") { cx += n.x; cy += n.y; k++; } });
+  if (k) S.nodes.forEach(function(n) { n.x -= cx / k; n.y -= cy / k; });
 }
 export function targetR(n) {
   if (!belt) return ringR(n.rank);
   if (n.kind !== "implement") return ringR(n._depth);
-  return ringR(decDepth) + BELT_GAP + n._depth * BELT_STEP;
+  return beltR + Math.max(BELT_GAP, beltR * BELT_FRAC) + n._depth * BELT_STEP;
 }
 
 export function layout() {
@@ -65,6 +83,8 @@ export function layout() {
       var d = Math.hypot(n.x, n.y) || 0.01; var target = targetR(n);
       var f = (target - d) * (belt && n.kind === "implement" ? BELT_PULL : RADIAL); n.x += (n.x / d) * f; n.y += (n.y / d) * f;
     });
+    if (belt) recentre();
+    clampBelt(S.nodes);
   }
 }
 
@@ -97,6 +117,7 @@ export function relayoutWarm() {
       var dd = Math.hypot(n.x, n.y) || 0.01, rf = (targetR(n) - dd) * (n.kind === "implement" ? BELT_PULL : 0.05); fx += n.x / dd * rf; fy += n.y / dd * rf;
       n.x += fx; n.y += fy;
     }
+    clampBelt(fresh);
   }
 }
 

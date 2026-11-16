@@ -53,7 +53,12 @@ same data, exactly as the first web UI was. Re-read-on-refresh stays. The
    [the implement phase](implement-phase-design.md)):
    - implement tickets are **stations**: a lit hexagon in a teal frame instead of a
      round star, laid out in an outer belt past the decision rings (a faint dotted
-     orbit marks it). Status colours, glow, pulse and rings keep their meaning.
+     orbit marks it). The belt is a hard floor: after every relaxation step a
+     station inside its belt radius is pushed back out, keeping its angle, so edges
+     only steer it around the ring. The ring sits max(160, 0.3 of the decision rim)
+     past the outermost decision, centred on the decisions, with a legible teal
+     orbit line. Stations never draw smaller than at 0.5x zoom. Status colours,
+     glow, pulse and rings keep their meaning.
    - a frontier ticket carries a small badge at its upper right: a robot when an
      agent can take it alone, a person when it needs the human.
 
