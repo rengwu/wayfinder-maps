@@ -1,7 +1,7 @@
 # Implement phase: design record
 
 Wayfinder today is planning only: a map is done when nothing is left to decide (see "Plan, don't do" in [the skill](../skills/wayfinder-maps/SKILL.md)).
-This fork extends a map past the decisions into the implementation: a map can carry implement tickets that link their PRs, show which frontier tickets agents can take on their own (and so run in parallel), and render distinctly in the viewer.
+This fork extends a map past the decisions into the implementation: a map can carry implement tickets that each link their PR, show which frontier tickets agents can take on their own (and so run in parallel), and render distinctly in the viewer.
 
 Skills and viewer change together, because the viewer only reads what the format contract says.
 
@@ -24,12 +24,12 @@ Skills and viewer change together, because the viewer only reads what the format
 8. **No waves.** Dropped: the frontier plus the AFK marker answers "what can run in parallel now", and dependency-aware breakdown stays a habit the skill encourages for every ticket type, not a computed field.
 9. **Parallel work: hub claims, workers write their own ticket.**
    - The hub (coordinating session) owns ticket numbers and `map.md`. It claims a ticket on main before dispatching a worker.
-   - A worker writes only its own ticket file, on its branch: `## Answer`, `prs`, ticked criteria. Questions it raises go in its Answer; it creates no tickets.
+   - A worker writes only its own ticket file, on its branch: `## Answer`, `pr`, ticked criteria. Questions it raises go in its Answer; it creates no tickets.
    - The ticket resolves when the worker's PR merges, with no hub step. The hub then writes the index line and turns raised questions into tickets or fog.
    - One ticket per session binds the worker. The hub only claims and records, so it may record many.
    - Without a hub, a single session works one ticket and records everything itself, as today.
    - GitHub-backed maps get this natively (assignee = claim, atomic ids).
-10. **PR links: `prs: [<url>, ...]`** in implement ticket frontmatter. URLs only; PR state is not stored. While the PR is open, main shows the ticket `claimed` with no PR link (the link lives on the branch); no new status.
+10. **One repo, one PR: `pr: <url>`** in implement ticket frontmatter. An implement ticket targets one repo and ships one PR; work that needs more repos or PRs is more implement tickets. URL only; PR state is not stored. While the PR is open, main shows the ticket `claimed` with no PR link (the link lives on the branch); no new status.
 11. **Claims keep the 72h rule.** A stale implement claim is the hub's cue to check the worker or PR and refresh `claimed_at` or release it. Lint warns, never errors.
 12. **Map index: new `## Implemented so far`**, the counterpart of `## Decisions so far`: one line per resolved implement ticket, gist plus link. Decisions so far never lists implement tickets and vice versa.
 13. **Upstream-friendly.** Upstreaming is not a goal of this effort, but keep changes easy to offer to rengwu later: additive prose over rewrites, fork-only bits (URLs, notices) in their own commits.
@@ -42,7 +42,7 @@ Ticket frontmatter:
 ---
 type: implement
 blocked_by: [04, 09]
-prs: [https://github.com/owner/repo/pull/12]   # optional, implement only
+pr: https://github.com/owner/repo/pull/12   # optional, implement only
 ---
 
 # <Ticket title>
@@ -74,7 +74,7 @@ Map body adds, after Decisions so far:
 ## Skills changes
 
 - `skills/wayfinder-maps/SKILL.md`: the `implement` ticket type (AFK, ships a PR), "Plan, then implement", the planning ticket, AFK/HITL on the frontier, and how a hub runs AFK frontier tickets in parallel.
-- `skills/wayfinder-maps/TRACKER-MARKDOWN.md`: `implement` type, `prs` and `afk` fields, the What-to-build body, `Implemented so far`, hub and worker writes, checklist additions.
+- `skills/wayfinder-maps/TRACKER-MARKDOWN.md`: `implement` type, `pr` and `afk` fields, the What-to-build body, `Implemented so far`, hub and worker writes, checklist additions.
 - `skills/wayfinder-maps/IMPLEMENT-PLAN.md`: new, see decision 5.
 - `skills/README.md`: divergences from upstream; mention the implement phase.
 - `README.md`: format contract, GitHub section (`wayfinder:implement`, `wayfinder:afk`, PR import), fork notice.
@@ -84,19 +84,19 @@ Map body adds, after Decisions so far:
 
 ### Model (`internal/wayfinder`)
 
-- `TypeImplement`; `Ticket.PRs []string`; `Ticket.AFK()` derived per decision 7; `Map.Implemented []Decision`.
+- `TypeImplement`; `Ticket.PR string`; `Ticket.AFK()` derived per decision 7; `Map.Implemented []Decision`.
 - Lint:
   - accept `implement`
-  - error: a `prs` entry that is not an http(s) URL
-  - warn: `prs` on a non-implement ticket
+  - error: a `pr` that is not an http(s) URL, or a list
+  - warn: `pr` on a non-implement ticket
   - warn: `afk` on a non-task ticket
-  - warn: resolved implement ticket without `prs`
+  - warn: resolved implement ticket without `pr`
   - warn: implement ticket listed in Decisions so far, or a non-implement ticket in Implemented so far
   - the existing index checks extended to Implemented so far
 
 ### Graph JSON (`/api/graph`)
 
-- Node: `kind` (`decision` | `implement`), `prs`, `afk`.
+- Node: `kind` (`decision` | `implement`), `pr`, `afk`.
 - Counts split per kind; frontier split into AFK and HITL.
 
 ### Rendering
@@ -104,7 +104,7 @@ Map body adds, after Decisions so far:
 - Star-map: implement tickets get a distinct shape and hue (stations, not stars) in an outer belt past the decisions, so the whole journey is one picture. Status colours keep their meaning.
 - Frontier tickets show whether an agent can take them or they need you.
 - HUD: decision and implement counts separately; frontier as "agents can take" and "needs you".
-- Panel: PR chips that open the PR.
+- Panel: a PR chip that opens the PR.
 
 ### CLI
 
@@ -113,7 +113,7 @@ Map body adds, after Decisions so far:
 ### GitHub importer (`scripts/wayfinder-pull`)
 
 - `wayfinder:implement` label maps to `type: implement`; `wayfinder:afk` maps to `afk: true`.
-- Fetch `closedByPullRequestsReferences` (GraphQL) per implement issue and write `prs:`.
+- Fetch `closedByPullRequestsReferences` (GraphQL) per implement issue and write `pr:` (the merged one; more than one means the ticket was mis-sliced).
 - A closed implement issue with no comment gets a synthesized answer (`Shipped in <PR url>`), so it reads as resolved.
 - Keep it portable to macOS BSD `sed` (`sed -E`, no `\+`, no `\b`). The script currently uses both, in `slugify` and the URL rewrites.
 
@@ -124,7 +124,7 @@ Map body adds, after Decisions so far:
 | A. Format contract: SKILL.md, TRACKER-MARKDOWN.md, IMPLEMENT-PLAN.md, README format section | none |
 | B. Model: parse, lint, `AFK()`, graph JSON, Go tests | A |
 | C. `wayfinder-pull`: labels, PR import, BSD sed | A |
-| D. Rendering: stations, AFK/HITL frontier, HUD, PR chips | B |
+| D. Rendering: stations, AFK/HITL frontier, HUD, PR chip | B |
 | E. CLI: `status` split and AFK/HITL frontier | B |
 | F. Fixture map exercising every case, verified in the viewer (`.claude/skills/verify`) | D, E |
 | G. Release: version bump, plugin URLs, goreleaser under this fork, install docs, fork notice | D, E, C |

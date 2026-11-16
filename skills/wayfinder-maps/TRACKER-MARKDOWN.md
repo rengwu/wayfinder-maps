@@ -14,7 +14,7 @@ This adapter **does not support concurrent sessions.** The skill permits them fo
 
 - The hub is the only writer of `map.md` and the only session that creates tickets, so numbers never collide.
 - The hub claims a ticket on main, and commits that, before dispatching a worker.
-- A worker edits only its own ticket file, on its branch: the `## Answer`, `prs`, and ticked acceptance criteria. Its PR merging writes them to main, and that merge is the resolution. While the PR is open, main shows the ticket `claimed`.
+- A worker edits only its own ticket file, on its branch: the `## Answer`, `pr`, and ticked acceptance criteria. Its PR merging writes them to main, and that merge is the resolution. While the PR is open, main shows the ticket `claimed`.
 - A question the worker raises goes in its Answer; the hub turns it into a ticket or fog after the merge.
 - Merges still void the induction below if anything else merged alongside: lint or verify the whole graph, not your delta.
 
@@ -47,7 +47,7 @@ claimed_by: <session or agent id>    # set while a session holds the ticket
 claimed_at: <RFC 3339 timestamp>     # set alongside claimed_by
 undermined_by: [NN]                  # optional — see the skill
 assets: [<repo-relative path>]       # optional
-prs: [<url>]                         # optional, implement only: PR URLs, state not stored
+pr: <url>                            # optional, implement only: its one PR, state not stored
 afk: true                            # optional, task only: an agent can drive it alone
 ---
 
@@ -64,7 +64,7 @@ Whether an agent can take a ticket alone is derived from its type: research and 
 
 ### Implement tickets
 
-An implement ticket replaces `## Question` with `## What to build`: the end-to-end behaviour, from the user's perspective, not a layer-by-layer list, followed by acceptance criteria. Avoid file paths and code snippets; they go stale. `blocked_by` names the decisions it rests on (traceability) and the slices that gate it.
+An implement ticket targets one repo and ships one PR, so `pr` is a single URL, never a list. An implement ticket replaces `## Question` with `## What to build`: the end-to-end behaviour, from the user's perspective, not a layer-by-layer list, followed by acceptance criteria. Avoid file paths and code snippets; they go stale. `blocked_by` names the decisions it rests on (traceability) and the slices that gate it.
 
 ```markdown
 ---
@@ -82,7 +82,7 @@ A user can export a whole map to one Markdown file from the CLI, with the map bo
 - [ ] a map with no tickets exports without error
 ```
 
-The closing `## Answer` records what shipped and links the PR; `prs` lists the PR URLs. The worker ticks the criteria on its branch. The ticket resolves when that PR merges.
+The closing `## Answer` records what shipped and links the PR; `pr` holds its URL. The worker ticks the criteria on its branch. The ticket resolves when that PR merges.
 
 ### Status is derived, never stored
 
@@ -144,6 +144,6 @@ Checks 1, 2, 4, 6 and 8 are a grep. Checks 3 and 5 need judgment, and no tool ca
 5. **Fog.** Every patch title names a question no live ticket holds, and every `<clears-with: NN>` names a ticket not yet resolved — a patch anchored to a resolved ticket should have graduated into a ticket, or been struck.
 6. **Numbers.** Each ticket number is used once, and no ticket file was deleted.
 7. **Counts.** Progress is written down nowhere; it is derived. Grep the repo for a stated count before you commit one.
-8. **Fields.** A resolved implement ticket carries `prs`. `prs` appears only on implement tickets and `afk` only on tasks.
+8. **Fields.** A resolved implement ticket carries `pr`. `pr` appears only on implement tickets and `afk` only on tasks.
 
 Where the repo has a tool that performs these, run it — but the skill needs no tool and assumes none. A tool's job here is `fsck`, not verification: it re-establishes the base case after the things a delta check cannot see, which are edits made outside this protocol and any merge that happened despite the rule above. It runs after the fact, and its absence costs you recovery, not correctness. A tool reading only `.plan/` also cannot see check 7's grep, nor make the judgments in checks 3 and 5.

@@ -99,7 +99,7 @@ claimed_by: <session id> # while a session holds it
 claimed_at: 2026-07-10T09:00:00Z # RFC 3339, alongside claimed_by
 undermined_by: [08] # optional — resolved on a premise 08 later broke
 assets: [../assets/x.html.approved] # optional
-prs: [https://github.com/o/r/pull/12] # optional, implement only
+pr: https://github.com/o/r/pull/12 # optional, implement only
 afk: true # optional, task only: an agent can drive it alone
 ---
 
@@ -115,8 +115,8 @@ afk: true # optional, task only: an agent can drive it alone
 ```
 
 An `implement` ticket swaps **Question** for **What to build** plus `- [ ]` acceptance
-criteria, and resolves when its PR merges; its **Answer** records what shipped. The map
-indexes it under **Implemented so far**, the counterpart of Decisions-so-far. Research
+criteria, targets one repo and one PR, and resolves when that PR merges; its **Answer**
+records what shipped. The map indexes it under **Implemented so far**, the counterpart of Decisions-so-far. Research
 and implement tickets are AFK (an agent can take them), grilling and prototype are HITL,
 and a task is HITL unless it sets `afk: true`.
 
