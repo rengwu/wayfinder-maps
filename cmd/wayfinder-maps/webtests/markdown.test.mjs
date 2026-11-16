@@ -149,6 +149,16 @@ test("ticket links become data-goto with leading zeros stripped", () => {
   );
 });
 
+test("task list items render as disabled checkboxes", () => {
+  assert.equal(
+    mdToHtml("- [ ] open one\n- [x] done *one*\n- [X] done two\n- plain"),
+    "<ul>\n<li class='task'><input type='checkbox' disabled> open one</li>\n" +
+    "<li class='task'><input type='checkbox' disabled checked> done <em>one</em></li>\n" +
+    "<li class='task'><input type='checkbox' disabled checked> done two</li>\n" +
+    "<li>plain</li>\n</ul>"
+  );
+});
+
 test("other relative links render as inert xlink spans", () => {
   assert.equal(
     mdToHtml("[readme](../README.md)"),

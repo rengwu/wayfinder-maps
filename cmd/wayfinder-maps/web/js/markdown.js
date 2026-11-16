@@ -43,7 +43,7 @@ export function mdToHtml(src) {
     if (h) { fp(); fl(); var lv = h[1].length; out.push("<h" + lv + ">" + mdInline(esc(h[2])) + "</h" + lv + ">"); continue; }
     if (/^(---+|\*\*\*+|___+)$/.test(t)) { fp(); fl(); out.push("<hr>"); continue; }
     var li = t.match(/^([-*+]|\d+\.)\s+(.*)$/);
-    if (li) { fp(); var ty = /\d/.test(li[1]) ? "ol" : "ul"; if (list && list !== ty) fl(); if (!list) { out.push("<" + ty + ">"); list = ty; } out.push("<li>" + mdInline(esc(li[2])) + "</li>"); continue; }
+    if (li) { fp(); var ty = /\d/.test(li[1]) ? "ol" : "ul"; if (list && list !== ty) fl(); if (!list) { out.push("<" + ty + ">"); list = ty; } var tk = li[2].match(/^\[( |x|X)\]\s+(.*)$/); out.push(tk ? "<li class='task'><input type='checkbox' disabled" + (tk[1] === " " ? "" : " checked") + "> " + mdInline(esc(tk[2])) + "</li>" : "<li>" + mdInline(esc(li[2])) + "</li>"); continue; }
     var bq = t.match(/^>\s?(.*)$/);
     if (bq) { fp(); fl(); out.push("<blockquote>" + mdInline(esc(bq[1])) + "</blockquote>"); continue; }
     if (list) fl();

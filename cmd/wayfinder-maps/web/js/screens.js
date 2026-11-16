@@ -29,6 +29,7 @@ function updateGraph(ng) {
     if (old) {
       if (old.status !== nn.status || old.undermined !== nn.undermined) old.flare = 1;
       old.status = nn.status; old.undermined = nn.undermined; old.claimedBy = nn.claimedBy;
+      old.kind = nn.kind; old.pr = nn.pr; old.afk = nn.afk;
       old.title = nn.title; old.type = nn.type; old.body = nn.body; old.rank = nn.rank; old.blockers = nn.blockers;
       keep.push(old);
     } else { nn.enter = 0; nn.flare = 1; keep.push(nn); }

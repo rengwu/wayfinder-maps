@@ -19,6 +19,14 @@ export function hexA(hex, al) {
   return "rgba(" + r + "," + g + "," + b + "," + al + ")";
 }
 
+export function glyphSvg(path, color) {
+  var ns = "http://www.w3.org/2000/svg", s = document.createElementNS(ns, "svg"), p = document.createElementNS(ns, "path");
+  s.setAttribute("viewBox", "0 0 10 10"); s.setAttribute("class", "glyph");
+  p.setAttribute("d", path); p.setAttribute("fill", color); p.setAttribute("fill-rule", "evenodd");
+  s.appendChild(p);
+  return s;
+}
+
 export function el(tag, cls, txt) {
   var e = document.createElement(tag);
   if (cls) e.className = cls;

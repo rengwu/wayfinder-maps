@@ -4,12 +4,44 @@ import {clamp, mulberry32} from "./util.js";
 
 export function ringR(rank) { return 130 + rank * 165; }
 
+// Implement tickets orbit in an outer belt past the outermost decision ring.
+// Maps without implement tickets never reach the belt branch, so their layout
+// is unchanged.
+var BELT_GAP = 150, BELT_STEP = 100;
+var BELT_PULL = 0.2;
+var belt = false, decDepth = 0;
+// With a belt, depth is counted within each kind: a decision that waits on an
+// implement ticket would otherwise be ranked past the belt it feeds.
+function rankSpan() {
+  belt = S.nodes.some(function(n) { return n.kind === "implement"; });
+  decDepth = 0;
+  if (!belt) return;
+  var memo = {};
+  function depth(n) {
+    if (memo[n.num] != null) return memo[n.num];
+    memo[n.num] = 0;
+    var d = 0, k = n.kind === "implement";
+    (n.blockers || []).forEach(function(b) {
+      var o = S.byNum[b];
+      if (o && (o.kind === "implement") === k) d = Math.max(d, depth(o) + 1);
+    });
+    return (memo[n.num] = d);
+  }
+  S.nodes.forEach(function(n) { n._depth = depth(n); if (n.kind !== "implement") decDepth = Math.max(decDepth, n._depth); });
+}
+export function targetR(n) {
+  if (!belt) return ringR(n.rank);
+  if (n.kind !== "implement") return ringR(n._depth);
+  return ringR(decDepth) + BELT_GAP + n._depth * BELT_STEP;
+}
+
 export function layout() {
+  rankSpan();
   var rnd = mulberry32(1337);
   S.nodes.forEach(function(n) {
     var ang = rnd() * 6.2831853;
     var jit = (rnd() - 0.5) * 70;
-    var R = ringR(n.rank) + jit;
+    var R = targetR(n) + jit;
     n.x = Math.cos(ang) * R; n.y = Math.sin(ang) * R;
   });
   var REP = 9000, SPRING = 0.02, REST = 150, RADIAL = 0.05;
@@ -30,8 +62,8 @@ export function layout() {
       a.x += ux * f; a.y += uy * f; b.x -= ux * f; b.y -= uy * f;
     });
     S.nodes.forEach(function(n) {
-      var d = Math.hypot(n.x, n.y) || 0.01; var target = ringR(n.rank);
-      var f = (target - d) * RADIAL; n.x += (n.x / d) * f; n.y += (n.y / d) * f;
+      var d = Math.hypot(n.x, n.y) || 0.01; var target = targetR(n);
+      var f = (target - d) * (belt && n.kind === "implement" ? BELT_PULL : RADIAL); n.x += (n.x / d) * f; n.y += (n.y / d) * f;
     });
   }
 }
@@ -45,6 +77,7 @@ export function relayoutWarm() {
   var fresh = [];
   S.nodes.forEach(function(n) { if (n.px != null) { n.x = n.px; n.y = n.py; } else fresh.push(n); });
   if (!fresh.length) return;
+  rankSpan();
   var rnd = mulberry32(97 + fresh.length);
   fresh.forEach(function(n) {
     var ax = null, ay = null;
@@ -54,14 +87,14 @@ export function relayoutWarm() {
     });
     var ang = rnd() * 6.2831853;
     if (ax != null) { n.x = ax + Math.cos(ang) * 120; n.y = ay + Math.sin(ang) * 120; }
-    else { var R = ringR(n.rank); n.x = Math.cos(ang) * R; n.y = Math.sin(ang) * R; }
+    else { var R = targetR(n); n.x = Math.cos(ang) * R; n.y = Math.sin(ang) * R; }
   });
   for (var it = 0; it < 200; it++) {
     for (var k = 0; k < fresh.length; k++) {
       var n = fresh[k], fx = 0, fy = 0, i;
       for (i = 0; i < S.nodes.length; i++) { var o = S.nodes[i]; if (o === n) continue; var dx = n.x - o.x, dy = n.y - o.y, d2 = dx * dx + dy * dy || 0.01, d = Math.sqrt(d2), f = 9000 / d2; fx += dx / d * f; fy += dy / d * f; }
       for (i = 0; i < S.edges.length; i++) { var e = S.edges[i], o2 = null; if (e.from === n.num) o2 = S.byNum[e.to]; else if (e.to === n.num) o2 = S.byNum[e.from]; if (!o2) continue; var dx2 = o2.x - n.x, dy2 = o2.y - n.y, dd2 = Math.hypot(dx2, dy2) || 0.01, f2 = (dd2 - 150) * 0.02; fx += dx2 / dd2 * f2; fy += dy2 / dd2 * f2; }
-      var dd = Math.hypot(n.x, n.y) || 0.01, rf = (ringR(n.rank) - dd) * 0.05; fx += n.x / dd * rf; fy += n.y / dd * rf;
+      var dd = Math.hypot(n.x, n.y) || 0.01, rf = (targetR(n) - dd) * (n.kind === "implement" ? BELT_PULL : 0.05); fx += n.x / dd * rf; fy += n.y / dd * rf;
       n.x += fx; n.y += fy;
     }
   }
@@ -76,7 +109,7 @@ export function fitCamera() {
   var spanx = maxx - minx || 1, spany = maxy - miny || 1;
   // Leave the top hint and the bottom HUD bar their own bands, and fit/centre the
   // constellation into what is left so no star hides behind the chrome.
-  var topInset = 54, botInset = 72, availH = Math.max(120, innerHeight - topInset - botInset);
+  var topInset = 54, botInset = S.nodes.some(function(n) { return n.kind === "implement"; }) ? 96 : 72, availH = Math.max(120, innerHeight - topInset - botInset);
   var s = Math.min(innerWidth / spanx, availH / spany); s = clamp(s, 0.15, 1.4);
   S.cam.s = s;
   var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
