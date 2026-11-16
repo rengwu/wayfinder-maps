@@ -35,6 +35,33 @@ Undermined — resolved on a premise that later changed:
 Fog: 5 patches, 1 anchored to a ticket
 ```
 
+## Rengwu's wayfinder CLI vs RamsesKools' wayfinder CLI
+
+[rengwu/wayfinder-maps](https://github.com/rengwu/wayfinder-maps) stops where the
+decisions stop: a map is done when the way is clear, and the build happens somewhere else.
+This fork lets a map carry on into the implementation, so the whole journey lives in one
+graph. A map with no implement tickets reads exactly as it does upstream.
+
+What this fork adds:
+
+- **`implement` tickets.** Each one ships one PR in one repo, with a `## What to build`
+  body plus acceptance criteria, and resolves when its PR merges. The new `pr:` field links
+  that PR.
+- **Planning the implementation.** A "Plan the implementation of X" grilling ticket breaks
+  the destination into implement tickets, following
+  [`IMPLEMENT-PLAN.md`](skills/wayfinder-maps/IMPLEMENT-PLAN.md).
+- **`## Implemented so far`.** It lists shipped work, next to Decisions-so-far.
+- **AFK or HITL per ticket.** Every frontier ticket says whether an agent can take it
+  alone or it needs you, so a hub session can run the AFK ones in parallel workers.
+  A task marks itself with `afk: true`.
+- **Lint and graph JSON** know about all of the above.
+- **`wayfinder-pull`** imports the `wayfinder:implement` and `wayfinder:afk` labels and
+  the linked PRs, and runs on macOS's stock `sed`.
+
+Still in progress: the viewer's look for implement tickets and the AFK/HITL frontier,
+and the matching `status` output. The [design record](docs/implement-phase-design.md) has
+the full plan.
+
 ## Install
 
 ### Skills, as a Claude Code plugin
