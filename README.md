@@ -62,6 +62,20 @@ Still in progress: the viewer's look for implement tickets and the AFK/HITL fron
 and the matching `status` output. The [design record](docs/implement-phase-design.md) has
 the full plan.
 
+### Why these additions
+
+Wayfinder exists because planning and deciding don't always fit in one session. I think
+the same holds for implementation:
+
+1. Some of the fog only clears once you start building. An implementation regularly turns
+   up new questions that need a grilling, research or a prototype, and those belong on
+   the same map rather than in a fresh plan.
+2. I like tracking progress on the visual map, and an implementation too big for one
+   session deserves that view as well.
+
+So one map now tracks the decisions and the implementation, all the way until the work is
+done.
+
 ## Install
 
 ### Skills, as a Claude Code plugin
