@@ -155,12 +155,33 @@ type countsDoc struct {
 	Open       int `json:"open"`
 	OutOfScope int `json:"outOfScope"`
 	Total      int `json:"total"`
+
+	Decisions kindCountsDoc `json:"decisions"`
+	Implement kindCountsDoc `json:"implement"`
+	Frontier  frontierDoc   `json:"frontier"`
+}
+
+type kindCountsDoc struct {
+	Resolved   int `json:"resolved"`
+	Claimed    int `json:"claimed"`
+	Open       int `json:"open"`
+	OutOfScope int `json:"outOfScope"`
+	Total      int `json:"total"`
+}
+
+type frontierDoc struct {
+	AFK   int `json:"afk"`
+	HITL  int `json:"hitl"`
+	Total int `json:"total"`
 }
 
 type nodeDoc struct {
 	Num        int    `json:"num"`
 	Title      string `json:"title"`
 	Type       string `json:"type"`
+	Kind       string `json:"kind"` // decision|implement
+	PR         string `json:"pr,omitempty"`
+	AFK        bool   `json:"afk"`
 	Status     string `json:"status"` // resolved|claimed|frontier|blocked|out_of_scope
 	Rank       int    `json:"rank"`
 	Undermined bool   `json:"undermined"`
@@ -198,6 +219,27 @@ func displayStatus(t *wayfinder.Ticket, frontier map[int]bool) string {
 	}
 }
 
+func kindOf(t *wayfinder.Ticket) string {
+	if t.Type == wayfinder.TypeImplement {
+		return "implement"
+	}
+	return "decision"
+}
+
+func (c *kindCountsDoc) add(s wayfinder.Status) {
+	c.Total++
+	switch s {
+	case wayfinder.StatusResolved:
+		c.Resolved++
+	case wayfinder.StatusClaimed:
+		c.Claimed++
+	case wayfinder.StatusOpen:
+		c.Open++
+	case wayfinder.StatusOutOfScope:
+		c.OutOfScope++
+	}
+}
+
 func buildGraph(e *wayfinder.Effort) graphDoc {
 	name := e.Map.Name
 	if name == "" {
@@ -205,8 +247,15 @@ func buildGraph(e *wayfinder.Effort) graphDoc {
 	}
 
 	frontier := map[int]bool{}
+	var fc frontierDoc
 	for _, t := range e.Frontier() {
 		frontier[t.Num] = true
+		fc.Total++
+		if t.AFK() {
+			fc.AFK++
+		} else {
+			fc.HITL++
+		}
 	}
 
 	rank := map[int]int{}
@@ -225,7 +274,15 @@ func buildGraph(e *wayfinder.Effort) graphDoc {
 			Open:       e.Count(wayfinder.StatusOpen),
 			OutOfScope: e.Count(wayfinder.StatusOutOfScope),
 			Total:      len(e.Tickets),
+			Frontier:   fc,
 		},
+	}
+	for _, t := range e.Tickets {
+		if t.Type == wayfinder.TypeImplement {
+			g.Counts.Implement.add(t.Status)
+		} else {
+			g.Counts.Decisions.add(t.Status)
+		}
 	}
 
 	for _, t := range e.Tickets {
@@ -233,6 +290,9 @@ func buildGraph(e *wayfinder.Effort) graphDoc {
 			Num:        t.Num,
 			Title:      t.Title,
 			Type:       string(t.Type),
+			Kind:       kindOf(t),
+			PR:         t.PR,
+			AFK:        t.AFK(),
 			Status:     displayStatus(t, frontier),
 			Rank:       rank[t.Num],
 			Undermined: len(t.UnderminedBy) > 0,
