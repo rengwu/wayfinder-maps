@@ -2,6 +2,7 @@ package wayfinder
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ func DefaultOptions() Options {
 	return Options{StaleClaimAfter: 72 * time.Hour, Now: time.Now()}
 }
 
-var validTypes = map[Type]bool{TypeResearch: true, TypePrototype: true, TypeGrilling: true, TypeTask: true}
+var validTypes = map[Type]bool{TypeResearch: true, TypePrototype: true, TypeGrilling: true, TypeTask: true, TypeImplement: true}
 var validStatuses = map[Status]bool{StatusOpen: true, StatusClaimed: true, StatusResolved: true, StatusOutOfScope: true}
 
 // Lint checks the invariants the wayfinder skill states as its format contract.
@@ -61,7 +62,22 @@ func Lint(e *Effort, opt Options) []Diagnostic {
 			add(Error, t.Path, 0, "no H1 title — the skill refers to tickets by name")
 		}
 		if !validTypes[t.Type] {
-			add(Error, t.Path, 0, "type %q is not research|prototype|grilling|task", t.Type)
+			add(Error, t.Path, 0, "type %q is not research|prototype|grilling|task|implement", t.Type)
+		}
+
+		if t.PR != "" {
+			if !singleHTTPURL(t.PR) {
+				add(Error, t.Path, 0, "pr %q is not a single http(s) URL: an implement ticket ships one PR", t.PR)
+			}
+			if t.Type != TypeImplement {
+				add(Warn, t.Path, 0, "pr on a %s ticket: only implement tickets ship a PR", t.Type)
+			}
+		}
+		if t.AFKSet && t.Type != TypeTask {
+			add(Warn, t.Path, 0, "afk on a %s ticket: it is derived from the type, only a task sets it", t.Type)
+		}
+		if t.Type == TypeImplement && t.Status == StatusResolved && t.PR == "" {
+			add(Warn, t.Path, 0, "resolved implement ticket has no pr: link the PR that shipped it")
 		}
 
 		// A stored status is a second copy of a fact the body already carries.
@@ -130,6 +146,14 @@ func Lint(e *Effort, opt Options) []Diagnostic {
 	return d
 }
 
+func singleHTTPURL(v string) bool {
+	if strings.ContainsAny(v, " \t,[]") {
+		return false
+	}
+	u, err := url.Parse(v)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
 func lintMap(e *Effort, add func(Level, string, int, string, ...any)) {
 	mp := e.Map.Path
 
@@ -149,10 +173,35 @@ func lintMap(e *Effort, add func(Level, string, int, string, ...any)) {
 		case t.Status != StatusResolved:
 			add(Error, mp, dec.Line, "Decisions-so-far lists %02d, which is %s, not resolved", dec.TicketNum, t.Status)
 		}
+		if t != nil && t.Type == TypeImplement {
+			add(Warn, mp, dec.Line, "Decisions-so-far lists implement ticket %02d, it belongs in Implemented-so-far", dec.TicketNum)
+		}
 	}
 	for n, count := range listed {
 		if count > 1 {
 			add(Warn, mp, 0, "Decisions-so-far lists ticket %02d %d times", n, count)
+		}
+	}
+
+	implemented := map[int]int{}
+	for _, dec := range e.Map.Implemented {
+		implemented[dec.TicketNum]++
+		t := e.ByNum(dec.TicketNum)
+		switch {
+		case t == nil:
+			add(Error, mp, dec.Line, "Implemented-so-far links ticket %02d, which does not exist", dec.TicketNum)
+		case t.Status == StatusOutOfScope:
+			add(Error, mp, dec.Line, "Implemented-so-far lists %02d, which is out of scope, not shipped work", dec.TicketNum)
+		case t.Status != StatusResolved:
+			add(Error, mp, dec.Line, "Implemented-so-far lists %02d, which is %s, not resolved", dec.TicketNum, t.Status)
+		}
+		if t != nil && t.Type != TypeImplement {
+			add(Warn, mp, dec.Line, "Implemented-so-far lists %s ticket %02d, only implement tickets belong there", t.Type, dec.TicketNum)
+		}
+	}
+	for n, count := range implemented {
+		if count > 1 {
+			add(Warn, mp, 0, "Implemented-so-far lists ticket %02d %d times", n, count)
 		}
 	}
 
@@ -164,7 +213,11 @@ func lintMap(e *Effort, add func(Level, string, int, string, ...any)) {
 	for _, t := range e.Tickets {
 		switch t.Status {
 		case StatusResolved:
-			if listed[t.Num] == 0 {
+			if t.Type == TypeImplement {
+				if implemented[t.Num] == 0 {
+					add(Error, t.Path, 0, "resolved but absent from the map's Implemented-so-far: the map is the index and it now lies")
+				}
+			} else if listed[t.Num] == 0 {
 				add(Error, t.Path, 0, "resolved but absent from the map's Decisions-so-far — the map is the index and it now lies")
 			}
 		case StatusOutOfScope:

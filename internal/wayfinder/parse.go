@@ -30,6 +30,7 @@ const (
 	TypePrototype Type = "prototype"
 	TypeGrilling  Type = "grilling"
 	TypeTask      Type = "task"
+	TypeImplement Type = "implement"
 )
 
 type Ticket struct {
@@ -44,6 +45,9 @@ type Ticket struct {
 	ClaimedBy    string
 	ClaimedAt    string
 	Assets       []string
+	PR           string
+	AFKSet       bool // an `afk` key is present, whatever its value
+	AFKFlag      bool // `afk: true`; only a task reads it
 
 	// HasAnswer and HasRuledOut mean a closing section with prose under it. A
 	// bare heading is not an answer, so the *Heading fields track it separately:
@@ -60,6 +64,17 @@ type Ticket struct {
 // EmptyClosing reports a closing heading with nothing written under it.
 func (t *Ticket) EmptyClosing() bool {
 	return (t.AnswerHeading && !t.HasAnswer) || (t.RuledOutHeading && !t.HasRuledOut)
+}
+
+// AFK reports whether an agent can take the ticket alone, derived from its type.
+func (t *Ticket) AFK() bool {
+	switch t.Type {
+	case TypeResearch, TypeImplement:
+		return true
+	case TypeTask:
+		return t.AFKFlag
+	}
+	return false
 }
 
 // Derive sets Status from the ticket's own contents. Closure is read first, so
@@ -95,6 +110,7 @@ type Map struct {
 	Destination string
 	Fog         []FogPatch
 	Decisions   []Decision
+	Implemented []Decision
 	OutOfScope  []Decision
 }
 
@@ -345,6 +361,9 @@ func ParseTicket(path, filename, src string) (*Ticket, error) {
 	t.ClaimedBy = kv["claimed_by"]
 	t.ClaimedAt = kv["claimed_at"]
 	t.Assets = splitList(kv["assets"])
+	t.PR = kv["pr"]
+	_, t.AFKSet = kv["afk"]
+	t.AFKFlag = strings.EqualFold(kv["afk"], "true")
 
 	t.AnswerHeading = hasHeading(scan, "Answer")
 	t.RuledOutHeading = hasHeading(scan, "Ruled out")
@@ -409,6 +428,7 @@ func ParseMap(path, src string) *Map {
 	m.Destination = strings.TrimSpace(sectionOf(raw, scan, "Destination"))
 
 	m.Decisions = decisionsIn(raw, scan, "Decisions so far")
+	m.Implemented = decisionsIn(raw, scan, "Implemented so far")
 	m.OutOfScope = decisionsIn(raw, scan, "Out of scope")
 
 	if start, end, ok := sectionRange(scan, "Not yet specified"); ok {
