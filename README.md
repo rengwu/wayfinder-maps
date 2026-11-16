@@ -167,15 +167,18 @@ an optional anchor; the rest stays loose prose:
 
 Errors: dangling or self `blocked_by`; `blocked_by` cycles; duplicate ticket numbers; a
 ticket carrying both `## Answer` and `## Ruled out`; a closing heading with nothing under
-it; a resolved ticket missing from Decisions-so-far; an out-of-scope ticket listed as a
-decision, or missing from Out-of-scope; Decisions-so-far pointing at an unresolved
-ticket; a fog patch duplicating a live ticket's title, or anchored to a resolved ticket;
-a missing Destination; an unknown type; a leftover `status:` field that disagrees with
-the body.
+it; a resolved ticket missing from Decisions-so-far (Implemented-so-far for an implement
+ticket); an out-of-scope ticket listed as a decision or implemented, or missing from
+Out-of-scope; Decisions-so-far or Implemented-so-far pointing at an unresolved ticket; a
+fog patch duplicating a live ticket's title, or anchored to a resolved ticket; a missing
+Destination; an unknown type; a leftover `status:` field that disagrees with the body; a
+`pr` that is not a single http(s) URL.
 
 Warnings: loose (pre-frontmatter) headers; a `status:` field that merely duplicates the
 body; a claim with no owner or older than 72h; a claim left on a closed ticket; a ticket
-blocked by something out of scope, which can never unblock.
+blocked by something out of scope, which can never unblock; `pr` on a non-implement
+ticket; `afk` on a non-task ticket; a resolved implement ticket without `pr`; an
+implement ticket in Decisions-so-far, or any other ticket in Implemented-so-far.
 
 Checks that need judgment — does a gist say what its answer says, does a fog title
 duplicate a live ticket _in substance_ — stay with the skill; no parser can make them.
