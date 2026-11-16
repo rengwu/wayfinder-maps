@@ -19,7 +19,7 @@ fi
 slugify() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
-    | sed -e 's/[^a-z0-9]\+/-/g' -e 's/^-//' -e 's/-$//' \
+    | sed -E -e 's/[^a-z0-9]+/-/g' -e 's/^-//' -e 's/-$//' \
     | cut -c1-50 | sed -e 's/-$//'
 }
 
@@ -42,6 +42,7 @@ rm -rf "$out"
 mkdir -p "$out/tickets"
 
 decisions=""
+implemented=""
 outofscope=""
 declare -a rewrites=()
 
@@ -54,9 +55,29 @@ for i in $(seq 0 $((count - 1))); do
   updated=$(jq -r .updated_at <<<"$t")
   assignee=$(jq -r '.assignees[0].login // ""' <<<"$t")
   nblocked=$(jq -r '.issue_dependencies_summary.total_blocked_by // 0' <<<"$t")
-  type=$(jq -r '[.labels[].name | select(startswith("wayfinder:"))][0] // "wayfinder:grilling"' <<<"$t" \
+  type=$(jq -r '[.labels[].name | select(startswith("wayfinder:") and . != "wayfinder:afk")][0] // "wayfinder:grilling"' <<<"$t" \
     | sed 's/^wayfinder://')
-  case "$type" in research|prototype|grilling|task) ;; *) type=grilling ;; esac
+  case "$type" in research|prototype|grilling|task|implement) ;; *) type=grilling ;; esac
+  afk=$(jq -r '[.labels[].name] | index("wayfinder:afk") != null' <<<"$t")
+
+  pr=""
+  if [ "$type" = "implement" ]; then
+    prs=$(gh api graphql -f query='
+      query($owner: String!, $name: String!, $number: Int!) {
+        repository(owner: $owner, name: $name) {
+          issue(number: $number) {
+            closedByPullRequestsReferences(first: 20, includeClosedPrs: true) {
+              nodes { url merged }
+            }
+          }
+        }
+      }' -f owner="${repo%%/*}" -f name="${repo#*/}" -F number="$num" \
+      | jq -c '.data.repository.issue.closedByPullRequestsReferences.nodes')
+    pr=$(jq -r '(map(select(.merged))[0] // .[0]).url // ""' <<<"$prs")
+    if [ "$(jq 'length' <<<"$prs")" -gt 1 ]; then
+      echo "wayfinder-pull: #$num links more than one PR; using $pr" >&2
+    fi
+  fi
 
   blocked_by="[]"
   if [ "$nblocked" != "0" ]; then
@@ -66,12 +87,14 @@ for i in $(seq 0 $((count - 1))); do
 
   slug=$(slugify "$title")
   file="$out/tickets/$num-$slug.md"
-  rewrites+=("s#https://github\\.com/$repo/issues/$num\\b#./tickets/$num-$slug.md#g")
+  rewrites+=("s#https://github\\.com/$repo/issues/$num([^0-9]|\$)#./tickets/$num-$slug.md\\1#g")
 
   {
     echo '---'
     echo "type: $type"
     echo "blocked_by: $blocked_by"
+    [ -z "$pr" ] || echo "pr: $pr"
+    [ "$afk" != "true" ] || echo "afk: true"
     if [ "$state" = "open" ] && [ -n "$assignee" ]; then
       echo "claimed_by: $assignee"
       echo "claimed_at: $updated"
@@ -87,15 +110,26 @@ for i in $(seq 0 $((count - 1))); do
     answer=$(gh api --paginate "repos/$repo/issues/$num/comments" \
       | jq -r '[.[].body] | join("\n\n---\n\n")' \
       | sed -E 's/^(#{1,5}) /#\1 /')
-    [ -n "$answer" ] || answer="_Closed on GitHub with no answer comment._"
+    if [ -z "$answer" ]; then
+      if [ "$type" = "implement" ] && [ "$reason" != "not_planned" ] && [ -n "$pr" ]; then
+        answer="Shipped in $pr."
+      else
+        answer="_Closed on GitHub with no answer comment._"
+      fi
+    fi
     if [ "$reason" = "not_planned" ]; then
       printf '\n## Ruled out\n\n%s\n' "$answer" >> "$file"
       outofscope="$outofscope- [$title](./tickets/$num-$slug.md)
 "
     else
       printf '\n## Answer\n\n%s\n' "$answer" >> "$file"
-      decisions="$decisions- [$title](./tickets/$num-$slug.md)
+      if [ "$type" = "implement" ]; then
+        implemented="$implemented- [$title](./tickets/$num-$slug.md)
 "
+      else
+        decisions="$decisions- [$title](./tickets/$num-$slug.md)
+"
+      fi
     fi
   fi
 
@@ -107,7 +141,7 @@ done
 # does not carry is generated from the ticket states.
 sedargs=()
 for r in "${rewrites[@]}"; do sedargs+=(-e "$r"); done
-mapbody=$(printf '%s\n' "$mapbody" | sed "${sedargs[@]}")
+mapbody=$(printf '%s\n' "$mapbody" | sed -E "${sedargs[@]}")
 
 {
   echo "# $maptitle"
@@ -118,6 +152,12 @@ mapbody=$(printf '%s\n' "$mapbody" | sed "${sedargs[@]}")
     echo '## Decisions so far'
     echo
     printf '%s' "$decisions"
+  fi
+  if [ -n "$implemented" ] && ! grep -q '^## Implemented so far' <<<"$mapbody"; then
+    echo
+    echo '## Implemented so far'
+    echo
+    printf '%s' "$implemented"
   fi
   if [ -n "$outofscope" ] && ! grep -q '^## Out of scope' <<<"$mapbody"; then
     echo
