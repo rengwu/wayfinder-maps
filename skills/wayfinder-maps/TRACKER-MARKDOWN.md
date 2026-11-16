@@ -10,6 +10,14 @@ Structure only what has exactly one correct value **and no other home**: type, e
 
 This adapter **does not support concurrent sessions.** The skill permits them for trackers that can honour them; files in git cannot. Two sessions reach for the same ticket number, both commit, and git merges the collision cleanly — neither session could see it coming, and the loser's `blocked_by` edges now name the wrong ticket.
 
+**The exception is a hub and its workers**, where the same collision is designed out rather than hoped away:
+
+- The hub is the only writer of `map.md` and the only session that creates tickets, so numbers never collide.
+- The hub claims a ticket on main, and commits that, before dispatching a worker.
+- A worker edits only its own ticket file, on its branch: the `## Answer`, `pr`, and ticked acceptance criteria. Its PR merging writes them to main, and that merge is the resolution. While the PR is open, main shows the ticket `claimed`.
+- A question the worker raises goes in its Answer; the hub turns it into a ticket or fog after the merge.
+- Merges still void the induction below if anything else merged alongside: lint or verify the whole graph, not your delta.
+
 Serialising also earns the delta check below: if nothing merges, the invariants hold by induction from the last commit, and a session need only verify what it changed.
 
 If a merge happens anyway, that induction is void. **Verify the whole graph, not your delta**, and run the linter if the repo has one.
@@ -23,7 +31,7 @@ If a merge happens anyway, that induction is void. **Verify the whole graph, not
   assets/                   research notes, approved markup, prototypes
 ```
 
-The map's Decisions-so-far and Out-of-scope sections link tickets as `[<title>](./tickets/NN-slug.md)`.
+The map's Decisions-so-far, Implemented-so-far, and Out-of-scope sections link tickets as `[<title>](./tickets/NN-slug.md)`.
 
 ## Tickets
 
@@ -33,12 +41,14 @@ The frontmatter holds the ticket's facts, and is the only place any of them is w
 
 ```markdown
 ---
-type: research | prototype | grilling | task
+type: research | prototype | grilling | task | implement
 blocked_by: [NN, NN]                 # [] when none
 claimed_by: <session or agent id>    # set while a session holds the ticket
 claimed_at: <RFC 3339 timestamp>     # set alongside claimed_by
 undermined_by: [NN]                  # optional — see the skill
 assets: [<repo-relative path>]       # optional
+pr: <url>                            # optional, implement only: its one PR, state not stored
+afk: true                            # optional, task only: an agent can drive it alone
 ---
 
 # <Ticket title>
@@ -49,6 +59,30 @@ assets: [<repo-relative path>]       # optional
 ```
 
 A closing section — `## Answer`, or `## Ruled out` — is appended on closure, not written up front. Assets are saved in the repo, linked from `assets:`, and not pasted in.
+
+Whether an agent can take a ticket alone is derived from its type: research and implement are AFK, grilling and prototype are HITL, and a task is HITL unless it sets `afk: true`. `afk` means nothing on any other type.
+
+### Implement tickets
+
+An implement ticket targets one repo and ships one PR, so `pr` is a single URL, never a list. An implement ticket replaces `## Question` with `## What to build`: the end-to-end behaviour, from the user's perspective, not a layer-by-layer list, followed by acceptance criteria. Avoid file paths and code snippets; they go stale. `blocked_by` names the decisions it rests on (traceability) and the slices that gate it.
+
+```markdown
+---
+type: implement
+blocked_by: [04, 09]
+---
+
+# Export a map as Markdown
+
+## What to build
+
+A user can export a whole map to one Markdown file from the CLI, with the map body first and tickets in number order.
+
+- [ ] `export` writes the file and exits 0
+- [ ] a map with no tickets exports without error
+```
+
+The closing `## Answer` records what shipped and links the PR; `pr` holds its URL. The worker ticks the criteria on its branch. The ticket resolves when that PR merges.
 
 ### Status is derived, never stored
 
@@ -85,6 +119,8 @@ grep -LE '^## (Answer|Ruled out)' tickets/*.md    # every ticket still open or c
 
 **A claim older than 72 hours is stale.** Say so out loud when you find one, rather than silently taking or skipping the ticket.
 
+A stale claim on an implement ticket is the hub's cue to check the worker and its PR, then refresh `claimed_at` if the work is alive or release the claim if it is not.
+
 ## Fog patches
 
 One bullet per patch in the map's **Not yet specified**. The bolded lead sentence is the patch's **title** — its identity, so it can be referred to and struck once it graduates. Anchor it to the open ticket that will clear it where you know which; leave the anchor off where you don't. Title and anchor are a patch's only structure; the rest is prose, as loose as the view allows.
@@ -99,14 +135,15 @@ The map is shared memory: the next session trusts it without re-deriving it, so 
 
 But these invariants held at the last commit, and one session touches few files. **Verify your delta, not the graph** — only what you changed can have broken them. The induction bottoms out at the charting session, which creates a map with nothing resolved and nothing closed, and it stands only because this adapter serialises sessions.
 
-Checks 1, 2, 4 and 6 are a grep. Checks 3 and 5 need judgment, and no tool can supply it.
+Checks 1, 2, 4, 6 and 8 are a grep. Checks 3 and 5 need judgment, and no tool can supply it.
 
 1. **Edges.** Every `blocked_by` you wrote names a ticket that exists, and not itself. No cycle — the whole edge set is one grep over `tickets/`.
 2. **Closure.** No ticket carries both an `## Answer` and a `## Ruled out`, and no closing heading is left empty.
-3. **The index.** The ticket you resolved appears exactly once in **Decisions so far**, and its gist says what its answer says. A ticket you ruled out appears once in **Out of scope**, and nowhere in Decisions-so-far.
+3. **The index.** The ticket you resolved appears exactly once in **Decisions so far**, and its gist says what its answer says. A resolved implement ticket appears exactly once in **Implemented so far** and never in Decisions-so-far, and a ticket of any other type is never in Implemented so far. A ticket you ruled out appears once in **Out of scope**, and nowhere in either.
 4. **Claims.** Any ticket still carrying `claimed_by` also carries `claimed_at`, and that claim is under 72 hours old.
 5. **Fog.** Every patch title names a question no live ticket holds, and every `<clears-with: NN>` names a ticket not yet resolved — a patch anchored to a resolved ticket should have graduated into a ticket, or been struck.
 6. **Numbers.** Each ticket number is used once, and no ticket file was deleted.
 7. **Counts.** Progress is written down nowhere; it is derived. Grep the repo for a stated count before you commit one.
+8. **Fields.** A resolved implement ticket carries `pr`. `pr` appears only on implement tickets and `afk` only on tasks.
 
 Where the repo has a tool that performs these, run it — but the skill needs no tool and assumes none. A tool's job here is `fsck`, not verification: it re-establishes the base case after the things a delta check cannot see, which are edits made outside this protocol and any merge that happened despite the rule above. It runs after the fact, and its absence costs you recovery, not correctness. A tool reading only `.plan/` also cannot see check 7's grep, nor make the judgments in checks 3 and 5.

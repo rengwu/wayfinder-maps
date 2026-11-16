@@ -8,19 +8,21 @@ A loose idea has arrived — too big for one agent session, and wrapped in fog: 
 
 The destination varies per effort, and naming it is the first act of charting — it shapes every ticket. It might be a spec to hand off and iterate on, a decision to lock before planning starts, or a change made in place like a data-structure migration. The map is domain-agnostic — engineering work, course content, whatever fits the shape.
 
-## Plan, don't do
+## Plan, then implement
 
-Wayfinder is **planning** by default: each ticket resolves a decision, and the map is done when the way is clear — nothing left to decide before someone goes and does the thing. The pull to just do the work is usually the signal you've reached the edge of the map and it's time to hand off. An effort can override this in its **Notes** — carrying execution into the map itself — but absent that, produce decisions, not deliverables.
+Wayfinder starts with **decisions**: most tickets resolve a question, and the pull to just do the work is usually the signal you've reached the edge of the decisions and it's time to plan the implementation. Settling the specs before implementing is encouraged, not required: not every decision can be known up front, and an implementation that raises new questions is normal.
+
+A map can carry **implement** tickets that deliver the destination as PRs, in the same graph as the decisions. A map with no implement tickets behaves exactly as it always did: done when the way is clear, nothing left to decide. Once it has any, it is done when the destination is reached: no open or claimed tickets left, not merely a clear way.
 
 ## Refer by name
 
-Every map and ticket has a **name** — its title. In everything the human reads — narration, the map's Decisions-so-far — refer to it by that name, never by a bare id, number, or filename. A wall of `03, 04, 05` is illegible; names read at a glance. The id doesn't vanish — a name wraps its link — but it rides *inside* the name, never stands in for it.
+Every map and ticket has a **name** — its title. In everything the human reads — narration, the map's Decisions-so-far and Implemented-so-far — refer to it by that name, never by a bare id, number, or filename. A wall of `03, 04, 05` is illegible; names read at a glance. The id doesn't vanish — a name wraps its link — but it rides *inside* the name, never stands in for it.
 
 ## The Map
 
 The map is the canonical artifact. Its tickets hang off it, one per ticket.
 
-The map is an **index**, not a store. It lists the decisions made and points at the tickets that hold their detail; a decision lives in exactly one place — its ticket — so the map never restates it, only gists it and links.
+The map is an **index**, not a store. It lists the decisions made (and, once implementation starts, what has shipped) and points at the tickets that hold their detail; a decision lives in exactly one place — its ticket — so the map never restates it, only gists it and links.
 
 **Where the map, its tickets, blocking, claims, and frontier queries physically live is adapter-specific.** Consult the adapter for this repo before writing anything. Absent one, default to the local-markdown adapter: [`TRACKER-MARKDOWN.md`](TRACKER-MARKDOWN.md), which stores the map under `.plan/` and states its own shapes, invariants, and verification checklist.
 
@@ -47,6 +49,12 @@ The whole map at low resolution, loaded once per session. Open tickets are **not
 <!-- the index — one line per resolved ticket: enough to judge relevance, then zoom the link for the detail the ticket holds -->
 
 - [<resolved ticket title>](<link>) — <one-line gist of the answer>
+
+## Implemented so far
+
+<!-- the same index for resolved implement tickets; empty until implementation starts -->
+
+- [<resolved implement ticket title>](<link>): <one-line gist of what shipped>
 
 ## Not yet specified
 
@@ -80,7 +88,18 @@ Every ticket is either **HITL** — human in the loop, worked *with* a human who
 - **Research** (AFK): Reading documentation, third-party APIs, or local resources like knowledge bases. Use the `research` skill: investigate against primary sources and create a cited markdown summary as a linked asset. Use when knowledge outside the current working directory is required.
 - **Prototype** (HITL): Raise the fidelity of the discussion by making a cheap, rough, concrete artifact to react to — an outline, a rough take, a stub, or UI/logic code via the `prototype` skill. Links the prototype as an asset. Use when "how should it look" or "how should it behave" is the key question.
 - **Grilling** (HITL): A relentless interview — one question at a time, a recommended answer offered with each, decision branches resolved one by one, facts looked up rather than asked — with the `domain-modeling` skill applied so terms and decisions are captured as they crystallise. The default case.
-- **Task** (HITL or AFK): Manual work that must happen before a *decision* can be made — nothing to decide, prototype, or research, but the discussion is blocked until it's done. Signing up for a service so its API can be judged, provisioning access, moving data so its shape can be seen. This is the one type that *does* rather than decides — and it earns its place by unblocking a decision, not by delivering the destination. The agent drives it alone where it can (AFK); otherwise it hands the human a precise checklist (HITL). Resolved when the work is done; the answer records what was done and any resulting facts (credentials location, new URLs, row counts) later tickets depend on.
+- **Implement** (AFK): Delivers a vertical slice of the destination as one PR in one repo; work that touches several repos or needs several PRs is several implement tickets. The body is **What to build** (the end-to-end behaviour) plus acceptance criteria. Resolved when its PR merges; the answer records what shipped and links the PR. Implement tickets are not charted by hand: they come from a grilling ticket, "Plan the implementation of X", blocked by the decisions it rests on, whose resolution follows [`IMPLEMENT-PLAN.md`](IMPLEMENT-PLAN.md). A map may hold several such planning tickets, one per part of the destination.
+- **Task** (HITL or AFK): Manual work that must happen before a *decision* can be made — nothing to decide, prototype, or research, but the discussion is blocked until it's done. Signing up for a service so its API can be judged, provisioning access, moving data so its shape can be seen. This is the one type that *does* rather than decides — and it earns its place by unblocking a decision, not by delivering the destination. The ticket records whether an agent can drive it alone (AFK) or it needs the human (HITL); the adapter says how. Where the agent can, it does the work; otherwise it hands the human a precise checklist. Resolved when the work is done; the answer records what was done and any resulting facts (credentials location, new URLs, row counts) later tickets depend on.
+
+## Parallel work
+
+The frontier says, per ticket, whether an agent can take it (AFK: research, implement, and any task marked so) or it needs the human (HITL: grilling, prototype, other tasks). A **hub** session can dispatch AFK frontier tickets to parallel workers; without a hub nothing changes, and a single session works one ticket and records everything itself.
+
+- The hub **claims** a ticket before dispatching its worker, and owns ticket creation and the map: new tickets, Implemented-so-far and Decisions-so-far lines, fog.
+- A worker writes only its own ticket: its answer and whatever the adapter says an implement ticket records. A question it raises goes in its answer; the hub turns it into a ticket or fog.
+- **One ticket per session** binds the worker. The hub only claims and records, so it may record many.
+
+Break work so independent tickets do not block each other, whatever the ticket type: edges only where one ticket genuinely gates another. Where claims, branches, and ticket numbers live is the adapter's business.
 
 ## Fog of war
 
@@ -111,7 +130,7 @@ The **Destination**, the **Notes**, a ticket's **Question**, its **Answer**, and
 
 ## Invocation
 
-Two modes. Either way, **never resolve more than one ticket per session.**
+Two modes. Either way, **never resolve more than one ticket per session.** (A hub that only claims, dispatches, and records resolves none itself; see Parallel work.)
 
 ### Chart the map
 
@@ -131,8 +150,8 @@ User invokes with a map. A ticket is **optional** — without one, you pick the 
 1. Load the **map** — the low-res view, not every ticket body.
 2. Choose the ticket. If the user named one, use it. Otherwise take the first frontier ticket in order. **Claim it** before any work.
 3. Resolve it — **zoom as needed**: read the full body of any related or resolved ticket on demand; invoke the skills the `## Notes` block names. If in doubt, grill (with `domain-modeling` applied).
-4. Record the resolution: write the answer, release the claim, and **append a context pointer** to the map's Decisions-so-far (gist + link).
+4. Record the resolution: write the answer, release the claim, and **append a context pointer** (gist + link) to the map's Decisions-so-far, or to Implemented-so-far if the ticket was an implement ticket.
 5. Add newly-surfaced tickets (create-then-wire); graduate any fog the answer has made specifiable, clearing each graduated patch from **Not yet specified** so it lives only as its new ticket. If the answer reveals a ticket — this one or another — sits beyond the destination, **rule it out of scope** rather than resolving it on the route. If the decision invalidates other parts of the map, update those tickets or close them — consult the adapter before removing one. If it breaks the premise of a decision already made, mark that ticket undermined rather than quietly re-deciding it.
 6. **Verify** against the adapter's checklist before committing.
 
-Whether two sessions may work the map at once is the adapter's to say. A tracker that allocates ids atomically can permit it; a directory of files generally cannot.
+Whether two sessions may work the map at once, and how a hub and its workers split the writes, is the adapter's to say. A tracker that allocates ids atomically can permit it; a directory of files generally cannot.
