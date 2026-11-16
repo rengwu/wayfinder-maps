@@ -23,10 +23,10 @@ Break the work into **tracer bullet** tickets.
 - Each slice cuts a narrow but COMPLETE path through every layer the change touches (e.g. schema, API, UI, tests): vertical, NOT a horizontal slice of one layer.
 - A completed slice is demoable or verifiable on its own.
 - Each slice is sized to fit one fresh agent session, because that is who takes it.
-- Each slice targets one repo and lands as one PR. A change spanning several repos, or too big for one PR, is several slices, wired with edges where one must merge first.
+- Each slice targets one repo and usually lands as one PR. A change spanning several repos, or too big for one PR, is several slices, wired with edges where one must ship first.
 - Any prefactoring is done first.
 
-Give each ticket its **blocking edges**: the other tickets that must merge before it can start. A ticket with no blockers can start immediately. Add an edge only where one slice genuinely gates another. Slices with no edge between them can run in parallel, so keep independent slices free of edges.
+Give each ticket its **blocking edges**: the other tickets that must ship before it can start. A ticket with no blockers can start immediately. Add an edge only where one slice genuinely gates another. Slices with no edge between them can run in parallel, so keep independent slices free of edges.
 
 **Wide refactors are the exception to vertical slicing.** A **wide refactor** is one mechanical change (rename a column, retype a shared symbol) whose **blast radius** fans across the whole codebase, so a single edit breaks thousands of call sites at once and no vertical slice can land green. Don't force it into a tracer bullet; sequence it as **expand-contract**. First expand: add the new form beside the old so nothing breaks. Then migrate the call sites over in batches sized by blast radius (per package, per directory), each batch its own ticket blocked by the expand, keeping the build green batch to batch because the old form still exists. Finally contract: delete the old form once no caller remains, in a ticket blocked by every migrate batch. When even the batches can't stay green alone, keep the sequence but let them share an integration branch that all block a final integrate-and-verify ticket; green is promised only there.
 
@@ -35,7 +35,7 @@ Give each ticket its **blocking edges**: the other tickets that must merge befor
 Present the proposed breakdown as a numbered list. For each ticket, show:
 
 - **Title**: short descriptive name
-- **Blocked by**: which other tickets (if any) must merge first
+- **Blocked by**: which other tickets (if any) must ship first
 - **What it delivers**: the end-to-end behaviour this ticket makes work
 
 Ask the user:
@@ -59,6 +59,6 @@ Each ticket's `blocked_by` names the decisions it rests on (so the reason for th
 
 Avoid specific file paths or code snippets: they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts: not a working demo, just the important bits.
 
-Then resolve the planning ticket as usual: write its answer, release the claim, and record it in Decisions so far. The new implement tickets reach Implemented so far only as each one's PR merges.
+Then resolve the planning ticket as usual: write its answer, release the claim, and record it in Decisions so far. The new implement tickets reach Implemented so far only as each one ships (usually when its PR merges).
 
-Each implement ticket is worked in its own fresh session: implement the slice, run the project's static checks and tests, review the work (with the `review-code` skill if it's available in your environment), tick off the acceptance criteria, write the answer and `pr` in the ticket, and open the PR. Independent AFK tickets on the frontier can run in parallel; see **Parallel work** in the skill.
+Each implement ticket is worked in its own fresh session: implement the slice, run the project's static checks and tests, review the work (with the `review-code` skill if it's available in your environment), tick off the acceptance criteria, write the answer in the ticket (and `pr`, if it ships as a PR), and open the PR when there is one. Independent AFK tickets on the frontier can run in parallel; see **Parallel work** in the skill.

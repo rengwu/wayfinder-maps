@@ -93,7 +93,7 @@ Frontier — ready to claim, first by number wins (1 AFK, 0 HITL):
 
 Implementation — in flight and shipped:
   02  Shipped with PR                                 https://github.com/o/r/pull/2
-  03  Shipped without PR                              no pr
+  03  Shipped without PR                              shipped without a PR
   04  Being built                                     by worker-1
 
 Blocked:

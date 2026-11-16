@@ -69,9 +69,9 @@ graph. A map with no implement tickets reads exactly as it does upstream.
 
 What this fork adds:
 
-- **`implement` tickets.** Each one ships one PR in one repo, with a `## What to build`
-  body plus acceptance criteria, and resolves when its PR merges. The new `pr:` field links
-  that PR.
+- **`implement` tickets.** Each one ships in one repo, usually as one PR, with a `## What to build`
+  body plus acceptance criteria, and resolves when the work has shipped. The optional `pr:`
+  field links the PR when there is one.
 - **Planning the implementation.** A "Plan the implementation of X" grilling ticket breaks
   the destination into implement tickets, following
   [`IMPLEMENT-PLAN.md`](skills/wayfinder-maps/IMPLEMENT-PLAN.md).
@@ -80,13 +80,13 @@ What this fork adds:
   alone or it needs you, so a hub session can run the AFK ones in parallel workers.
   A task marks itself with `afk: true`.
 - **`status` splits the map.** With implement tickets it counts decisions and
-  implementation separately, lists in-flight and shipped implement tickets (with their PR),
+  implementation separately, lists in-flight and shipped implement tickets (with their PR, when they have one),
   and marks every frontier row AFK or HITL.
 - **Lint and graph JSON** know about all of the above.
 - **`wayfinder-pull`** imports the `wayfinder:implement` and `wayfinder:afk` labels and
   the linked PRs, and runs on macOS's stock `sed`.
 - **Viewer.** Implement tickets are hexagonal stations in an outer belt, frontier tickets
-  carry an agent or person badge, and a ticket panel links its PR.
+  carry an agent or person badge, and a ticket panel links its PR when it has one.
 
 The [design record](docs/implement-phase-design.md) has the full plan.
 
@@ -185,8 +185,8 @@ afk: true # optional, task only: an agent can drive it alone
 ```
 
 An `implement` ticket swaps **Question** for **What to build** plus `- [ ]` acceptance
-criteria, targets one repo and one PR, and resolves when that PR merges; its **Answer**
-records what shipped. The map indexes it under **Implemented so far**, the counterpart of
+criteria, targets one repo and usually one PR, and resolves when the work has shipped; its **Answer**
+records what shipped and links the PR or commit when there is one. The map indexes it under **Implemented so far**, the counterpart of
 Decisions-so-far. Research and implement tickets are AFK (an agent can take them),
 grilling and prototype are HITL, and a task is HITL unless it sets `afk: true`.
 
@@ -247,7 +247,7 @@ Destination; an unknown type; a leftover `status:` field that disagrees with the
 Warnings: loose (pre-frontmatter) headers; a `status:` field that merely duplicates the
 body; a claim with no owner or older than 72h; a claim left on a closed ticket; a ticket
 blocked by something out of scope, which can never unblock; `pr` on a non-implement
-ticket; `afk` on a non-task ticket; a resolved implement ticket without `pr`; an
+ticket; `afk` on a non-task ticket; an
 implement ticket in Decisions-so-far, or any other ticket in Implemented-so-far.
 
 Checks that need judgment — does a gist say what its answer says, does a fog title
@@ -291,9 +291,9 @@ Decisions-so-far is scanned for; `## Decisions so far`, `## Implemented so far` 
 The label `wayfinder:implement` makes a ticket `type: implement`, and `wayfinder:afk` writes
 `afk: true` (meaningful on a task only). For an implement issue the script reads its linked
 pull requests and writes `pr: <url>`, preferring a merged one; more than one linked PR prints
-a warning, since an implement ticket ships one PR. A closed implement issue with no comment
-gets the answer `Shipped in <PR url>.` and is listed under Implemented so far rather than
-Decisions so far. The script runs on macOS's stock `sed`.
+a warning, since an implement ticket usually ships one PR. A closed implement issue with no comment
+gets the answer `Shipped in <PR url>.` when a PR was found, else `_Closed on GitHub with no answer comment._`;
+either way it is listed under Implemented so far rather than Decisions so far. The script runs on macOS's stock `sed`.
 
 The mirror is one-directional and is a snapshot: claiming or resolving in the viewer changes
 nothing in the tracker, and a change made there shows up on the next pull. `undermined_by`
