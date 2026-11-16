@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/rengwu/wayfinder-maps/internal/wayfinder"
+	"github.com/RamsesKools/wayfinder-maps/internal/wayfinder"
 )
 
 func graphTicket(num int, typ wayfinder.Type, answered bool, pr string, afk bool, blocked ...int) *wayfinder.Ticket {
