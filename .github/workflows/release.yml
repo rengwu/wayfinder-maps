@@ -1,7 +1,7 @@
 # Release binaries on tag push. The Linux webkit helper must be built on Linux
 # (cgo against webkit2gtk), so two runner jobs build it per-arch first; the
-# GoReleaser job on macOS then builds everything else — darwin with cgo for
-# the native window, windows and linux mains as pure Go — and packs the
+# GoReleaser job (Linux, goreleaser-cross) then builds everything else, darwin
+# with cgo via osxcross for the native window, windows and linux mains as pure Go — and packs the
 # helpers into the Linux archives.
 #
 # ubuntu-22.04 on purpose: binaries link the oldest glibc we can, and jammy's
@@ -41,22 +41,21 @@ jobs:
 
   goreleaser:
     needs: linux-helper
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+    # osxcross + macOS SDK let this Linux job build the darwin cgo targets.
+    container: ghcr.io/goreleaser/goreleaser-cross:v1.26.10
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
       - uses: actions/download-artifact@v4
         with:
           path: helpers
       - name: Restore helper exec bits # artifacts drop file modes
         run: chmod +x helpers/*/wayfinder-maps-webview
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          version: "~> v2"
-          args: release --clean
+      - name: Release
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,7 +2,8 @@ version: 2
 
 project_name: wayfinder-maps
 
-# Three build flavours, one binary name. macOS binds WKWebView through cgo;
+# Three build flavours, one binary name. macOS binds WKWebView through cgo
+# (cross-compiled with osxcross in the goreleaser-cross image);
 # Windows gets its native window via pure-Go WebView2 bindings; Linux stays
 # pure Go here and carries its webkit linkage in the helper binary, which CI
 # builds on Linux runners and drops into helpers/ before this config runs.
@@ -12,6 +13,8 @@ builds:
     binary: wayfinder-maps
     env:
       - CGO_ENABLED=1
+      - CC={{ if eq .Arch "arm64" }}oa64-clang{{ else }}o64-clang{{ end }}
+      - CXX={{ if eq .Arch "arm64" }}oa64-clang++{{ else }}o64-clang++{{ end }}
     goos:
       - darwin
     goarch:
