@@ -37,5 +37,9 @@ export const S = {
 
   // Fog patches (open questions not yet sharp enough to ticket), placed by
   // fog.js; also read by fitCamera so nebulae stay inside the fitted view.
-  fogPts: []
+  fogPts: [],
+
+  // Virtual start/goal {x,y,r}, placed by endpoints.js from the laid-out nodes.
+  startPt: null,
+  goalPt: null
 };

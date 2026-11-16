@@ -1,4 +1,4 @@
-<img src="docs/images/demo.png" alt="The wayfinder star-map viewer on a release-notes map: decision stars, teal implement stations on an outer belt, frontier badges, and a HUD with decision and implement counts">
+<img src="docs/images/demo.png" alt="The wayfinder star-map viewer on a release-notes map, laid out left to right from a start node to a goal cloud holding the fog, with teal implement stations, frontier badges, and a HUD with decision and implement counts">
 
 # wayfinder-maps
 
@@ -65,7 +65,7 @@ decisions stop: a map is done when the way is clear, and the build happens somew
 This fork lets a map carry on into the implementation, so the whole journey lives in one
 graph. A map with no implement tickets reads exactly as it does upstream.
 
-<img src="docs/images/compare.png" alt="The same map in the upstream viewer (v0.2.3) and in this fork (v0.3.0), with callouts for implement stations, frontier badges, the split HUD and the ticket panel with its PR chip">
+<img src="docs/images/compare.png" alt="The same map in the upstream viewer (v0.2.3) and in this fork (v0.4.0), with callouts for implement stations, frontier badges, the start and goal, the split HUD and the ticket panel with its PR chip">
 
 What this fork adds:
 

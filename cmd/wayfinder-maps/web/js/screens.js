@@ -4,6 +4,7 @@ import {S} from "./state.js";
 import {el} from "./util.js";
 import {layout, relayoutWarm, fitCamera} from "./layout.js";
 import {setupFog} from "./fog.js";
+import {setupEndpoints} from "./endpoints.js";
 import {buildHud} from "./hud.js";
 import {fillPanel, closePanel} from "./panel.js";
 import {startFade} from "./draw.js";
@@ -14,7 +15,7 @@ function sortNodes(g) { return (g.nodes || []).slice().sort(function(a, b) { ret
 // scratch, then fit the camera. Used when a map is first opened or switched to.
 function applyGraph(g) {
   S.graph = g; S.nodes = sortNodes(g); S.edges = g.edges || []; S.byNum = {}; S.nodes.forEach(function(n) { S.byNum[n.num] = n; });
-  layout(); S.nodes.forEach(function(n) { n.px = n.x; n.py = n.y; n._x = n.x; n._y = n.y; }); setupFog(); fitCamera();
+  layout(); S.nodes.forEach(function(n) { n.px = n.x; n.py = n.y; n._x = n.x; n._y = n.y; }); setupEndpoints(); setupFog(); fitCamera();
   S.goal.x = S.cam.x; S.goal.y = S.cam.y; S.goal.s = S.cam.s; buildHud();
 }
 
@@ -38,7 +39,7 @@ function updateGraph(ng) {
   S.edges = ng.edges || []; S.graph = ng;
   relayoutWarm();                                                       // survivors pinned; only new nodes placed
   S.nodes.forEach(function(n) { if (n.px == null) { n.px = n.x; n.py = n.y; } }); // new nodes appear at their final spot
-  setupFog(); buildHud();                                               // note: no fitCamera — keep the user's view
+  setupEndpoints(); setupFog(); buildHud();                                               // note: no fitCamera — keep the user's view
   if (S.selected) { if (S.byNum[S.selected.num]) fillPanel(S.selected); else closePanel(); }
 }
 
@@ -64,7 +65,7 @@ export function startPolling() {
 // poller goes idle because currentEffort is cleared.
 function unmountMap() {
   S.currentEffort = null; S.lastVersion = null; S.selected = null;
-  S.graph = null; S.nodes = []; S.edges = []; S.byNum = {}; S.fogPts = [];
+  S.graph = null; S.nodes = []; S.edges = []; S.byNum = {}; S.fogPts = []; S.startPt = S.goalPt = null;
   closePanel();
 }
 
