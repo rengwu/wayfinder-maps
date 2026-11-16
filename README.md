@@ -280,6 +280,12 @@ configure. The default out-dir is `.plan/<slug of the map's title>`, wiped and r
 each run — a cache, not a source, so nothing in it should be hand-edited and the directory
 belongs in the host repo's `.gitignore`.
 
+Each pull also writes `<out-dir>/.source.json` (repo, map issue, `gh` auth kind and account).
+`scripts/wayfinder-pull --refresh <out-dir>` re-pulls from it, using that account's token
+(`gh auth token --user`) even if the active `gh` account has changed since. The viewer shows a
+"Pull from GitHub" button for any map with a `.source.json`, running exactly that; the script is
+embedded in the binary. Maps pulled before this need one manual pull to get the file.
+
 The mapping follows the GitHub adapter in the skill's setup notes. 
 Two adjustments make the round trip parse. Headings inside a resolve comment are demoted one
 level, since a comment opening with its own `##` would otherwise end the `## Answer` section

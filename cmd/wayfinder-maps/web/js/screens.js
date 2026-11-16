@@ -43,6 +43,43 @@ function updateGraph(ng) {
   if (S.selected) { if (S.byNum[S.selected.num]) fillPanel(S.selected); else closePanel(); }
 }
 
+// refreshMap force-fetches the open map and folds it in, without waiting for
+// the poller's next tick.
+function refreshMap() {
+  var eff = S.currentEffort;
+  if (!eff) return Promise.resolve();
+  return fetch("/api/graph?effort=" + encodeURIComponent(eff)).then(function(r) { return r.json(); }).then(function(g) {
+    if (S.currentEffort === eff) updateGraph(g);
+  });
+}
+
+// pullFromGithub re-pulls a GitHub-backed map into .plan/ on the server, then
+// shows the result. The button label carries progress and failure.
+export function pullFromGithub() {
+  var btn = document.getElementById("pullbtn"), eff = S.currentEffort;
+  if (!eff || btn.disabled) return;
+  var label = btn.textContent;
+  btn.disabled = true; btn.textContent = "Pulling\u2026"; btn.title = "";
+  fetch("/api/pull?effort=" + encodeURIComponent(eff), {method: "POST", headers: {"X-Wayfinder": "1"}})
+    .then(function(r) { return r.ok ? refreshMap() : r.text().then(function(t) { throw new Error(t.trim()); }); })
+    .then(function() { btn.textContent = label; })
+    .catch(function(e) {
+      btn.textContent = "Pull failed"; btn.title = e.message;
+      setTimeout(function() { btn.textContent = label; btn.title = ""; }, 6000);
+    })
+    .then(function() { btn.disabled = false; });
+}
+
+// showPullButton reveals the button only for maps mirrored by wayfinder-pull.
+function showPullButton(eff) {
+  var btn = document.getElementById("pullbtn"); btn.hidden = true;
+  fetch("/api/source?effort=" + encodeURIComponent(eff)).then(function(r) { return r.json(); }).then(function(s) {
+    if (S.currentEffort !== eff || !s.pullable) return;
+    btn.hidden = false;
+    btn.title = "Re-pull " + s.repo + "#" + s.map + (s.account ? " as " + s.account : "");
+  }).catch(function() {});
+}
+
 // One poller for the whole app: only runs while a map is open, and re-checks the
 // effort mid-flight so switching maps never applies stale data.
 export function startPolling() {
@@ -165,6 +202,7 @@ function projectName(effort) {
 export function loadMap(effort) {
   S.currentEffort = effort; S.lastVersion = null; S.selected = null;
   document.getElementById("projtag").textContent = projectName(effort);
+  showPullButton(effort);
   fetch("/api/graph?effort=" + encodeURIComponent(effort)).then(function(r) { return r.json(); }).then(function(g) {
     applyGraph(g); setScreen("map"); startFade(0, 1, 2.2); // dissolve the constellation in
   });

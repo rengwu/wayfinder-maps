@@ -99,10 +99,12 @@ a.c.pr:hover{background:rgba(95,209,192,.12);border-color:#5fd1c0}
 /* Top-left chrome in map view: the way back, then which project this map
    belongs to — the HUD names the map, this names its home. */
 #topleft{position:fixed;top:16px;left:16px;z-index:7;display:none;align-items:center;gap:10px}
-#backbtn{display:flex;align-items:center;
+#backbtn,#pullbtn{display:flex;align-items:center;
   background:rgba(14,18,26,.72);border:1px solid #262b36;border-radius:999px;color:#b7bdc9;
   padding:7px 14px;font-size:12px;cursor:pointer;backdrop-filter:blur(8px)}
-#backbtn:hover{color:#e6e9ef;border-color:#3a4356}
+#backbtn:hover,#pullbtn:hover{color:#e6e9ef;border-color:#3a4356}
+#pullbtn[hidden]{display:none}
+#pullbtn:disabled{opacity:.5;cursor:default}
 #projtag{font-size:12px;color:#8b93a3;max-width:32vw;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* splash + map list overlays, floating over the live starfield */

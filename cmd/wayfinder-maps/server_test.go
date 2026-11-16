@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -126,5 +129,43 @@ func TestOpenEndpoint(t *testing.T) {
 	}
 	if len(opened) != 1 || opened[0] != "https://example.com/o/r/pull/2" {
 		t.Errorf("opened = %v", opened)
+	}
+}
+
+func TestPullEndpoint(t *testing.T) {
+	dir := t.TempDir()
+	plain := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".source.json"), []byte(`{"repo":"o/r","map":3,"auth":"gh","account":"me"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var pulled []string
+	old := runPull
+	runPull = func(e string) error { pulled = append(pulled, e); return nil }
+	defer func() { runPull = old }()
+	h := newServer("")
+
+	post := func(effort string, hdr bool) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/pull?effort="+url.QueryEscape(effort), nil)
+		if hdr {
+			req.Header.Set("X-Wayfinder", "1")
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if c := post(dir, false); c != http.StatusBadRequest {
+		t.Errorf("no header: %d", c)
+	}
+	if c := post(plain, true); c != http.StatusBadRequest {
+		t.Errorf("not a mirror: %d", c)
+	}
+	if c := post(dir, true); c != http.StatusNoContent || len(pulled) != 1 || pulled[0] != dir {
+		t.Errorf("pull: %d %v", c, pulled)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/source?effort="+url.QueryEscape(dir), nil))
+	if !strings.Contains(rec.Body.String(), `"pullable":true`) || !strings.Contains(rec.Body.String(), `"account":"me"`) {
+		t.Errorf("source = %s", rec.Body)
 	}
 }

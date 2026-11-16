@@ -4,7 +4,7 @@ import {S, canvas, dpr} from "./state.js";
 import {initStars, render} from "./draw.js";
 import "./input.js"; // wires pan/zoom/click on the canvas
 import "./panel.js"; // wires the panel close button and cross-ticket links
-import {startPolling, showSplash, openProject, loadMap, leaveMap} from "./screens.js";
+import {startPolling, showSplash, openProject, loadMap, leaveMap, pullFromGithub} from "./screens.js";
 
 function resize() {
   canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
@@ -19,6 +19,8 @@ document.getElementById("openanother").onclick = function() { leaveMap(showSplas
 document.getElementById("backbtn").onclick = function() {
   leaveMap(function() { if (S.lastProject) openProject(S.lastProject); else showSplash(); });
 };
+
+document.getElementById("pullbtn").onclick = pullFromGithub;
 
 resize(); initStars(); render(); startPolling();
 fetch("/api/initial").then(function(r) { return r.json(); }).then(function(init) {

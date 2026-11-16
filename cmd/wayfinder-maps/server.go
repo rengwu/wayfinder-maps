@@ -130,6 +130,32 @@ func newServer(initial string) http.Handler {
 		writeJSON(w, buildGraph(e))
 	})
 
+	// Whether the effort is a GitHub mirror, so the client can offer a pull.
+	mux.HandleFunc("/api/source", func(w http.ResponseWriter, r *http.Request) {
+		src, ok := readPullSource(r.URL.Query().Get("effort"))
+		writeJSON(w, map[string]any{"pullable": ok, "repo": src.Repo, "map": src.Map, "account": src.Account})
+	})
+
+	// Re-pull a GitHub-backed effort into .plan/. POST with a custom header
+	// (forces a CORS preflight), since it runs a script and writes files; the
+	// viewer's poller then picks up the rewritten files.
+	mux.HandleFunc("/api/pull", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.Header.Get("X-Wayfinder") == "" {
+			http.Error(w, "POST with X-Wayfinder required", http.StatusBadRequest)
+			return
+		}
+		effort := r.URL.Query().Get("effort")
+		if _, ok := readPullSource(effort); !ok {
+			http.Error(w, "not a GitHub-backed map (no .source.json); run wayfinder-pull once", http.StatusBadRequest)
+			return
+		}
+		if err := runPull(effort); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	// A cheap change token the client polls: the newest mtime across map.md +
 	// tickets/ plus the file count, so an edit, add or delete all move it.
 	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {

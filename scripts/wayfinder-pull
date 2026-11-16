@@ -4,15 +4,39 @@
 # is safe to delete. Needs `gh` (logged in) and `jq`.
 #
 #   scripts/wayfinder-pull <owner/repo> <map-issue-number> [out-dir]
+#   scripts/wayfinder-pull --refresh <out-dir>
 #
+# Each pull records <out-dir>/.source.json (repo, map issue, gh auth kind and
+# account). --refresh re-pulls from it, using that account's token even if the
+# active gh account has since changed.
 # Ticket numbers are the GitHub issue numbers, so #22 stays 22 everywhere.
 set -euo pipefail
 
-repo=${1:-}
-map=${2:-}
-out=${3:-}
+auth=""
+account=""
+if [ "${1:-}" = "--refresh" ]; then
+  out=${2:-}
+  if [ -z "$out" ] || [ ! -f "$out/.source.json" ]; then
+    echo "wayfinder-pull: --refresh needs a pulled map dir containing .source.json" >&2
+    exit 2
+  fi
+  repo=$(jq -r '.repo // ""' "$out/.source.json")
+  map=$(jq -r '.map // ""' "$out/.source.json")
+  auth=$(jq -r '.auth // ""' "$out/.source.json")
+  account=$(jq -r '.account // ""' "$out/.source.json")
+  if [ "$auth" = "gh" ] && [ -n "$account" ]; then
+    GH_TOKEN=$(gh auth token --user "$account") \
+      || { echo "wayfinder-pull: gh account '$account' is not logged in" >&2; exit 2; }
+    export GH_TOKEN
+  fi
+else
+  repo=${1:-}
+  map=${2:-}
+  out=${3:-}
+fi
 if [ -z "$repo" ] || [ -z "$map" ]; then
   echo "usage: wayfinder-pull <owner/repo> <map-issue-number> [out-dir]" >&2
+  echo "       wayfinder-pull --refresh <out-dir>" >&2
   exit 2
 fi
 
@@ -22,6 +46,15 @@ slugify() {
     | sed -E -e 's/[^a-z0-9]+/-/g' -e 's/^-//' -e 's/-$//' \
     | cut -c1-50 | sed -e 's/-$//'
 }
+
+if [ -z "$auth" ]; then
+  if [ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]; then
+    auth=env
+  else
+    auth=gh
+    account=$(gh api user --jq .login 2>/dev/null || true)
+  fi
+fi
 
 mapjson=$(gh api "repos/$repo/issues/$map")
 maptitle=$(jq -r .title <<<"$mapjson")
@@ -166,5 +199,8 @@ mapbody=$(printf '%s\n' "$mapbody" | sed -E "${sedargs[@]}")
     printf '%s' "$outofscope"
   fi
 } > "$out/map.md"
+
+jq -n --arg repo "$repo" --argjson map "$map" --arg auth "$auth" --arg account "$account" \
+  '{repo: $repo, map: $map, auth: $auth, account: $account}' > "$out/.source.json"
 
 echo "wayfinder-pull: $repo#$map -> $out ($count tickets)"
