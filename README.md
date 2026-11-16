@@ -116,9 +116,9 @@ afk: true # optional, task only: an agent can drive it alone
 
 An `implement` ticket swaps **Question** for **What to build** plus `- [ ]` acceptance
 criteria, targets one repo and one PR, and resolves when that PR merges; its **Answer**
-records what shipped. The map indexes it under **Implemented so far**, the counterpart of Decisions-so-far. Research
-and implement tickets are AFK (an agent can take them), grilling and prototype are HITL,
-and a task is HITL unless it sets `afk: true`.
+records what shipped. The map indexes it under **Implemented so far**, the counterpart of
+Decisions-so-far. Research and implement tickets are AFK (an agent can take them),
+grilling and prototype are HITL, and a task is HITL unless it sets `afk: true`.
 
 ### Status is derived
 
