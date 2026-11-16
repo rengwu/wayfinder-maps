@@ -11,12 +11,25 @@ description: Build, launch and drive wayfinder-maps to verify a change end-to-en
 go build -o /tmp/wayfinder-maps ./cmd/wayfinder-maps
 ```
 
-There is no sample map in the repo. Create an effort dir with `map.md` +
-`tickets/NN-slug.md`. Ticket format: YAML frontmatter (`type:`, `blocked_by: [01]`,
-`claimed_by:`, `undermined_by: [NN]`) then `# Title`, `## Question`; a `## Answer`
-section with prose = resolved, `## Ruled out` = out_of_scope. Map format: `# Name`,
-`## Destination`, and fog under `## Not yet specified` as
-`- **Title.** clears-with: NN`. Sanity-check the fixture with
+The sample map is `internal/wayfinder/testdata/implement-demo/` (20 tickets: every
+type and status, undermined decision, anchored and unanchored fog, implement tickets
+with a merged PR, a claim, a frontier slot and an implement ticket blocking a
+decision). Serve and `status` it directly. `lint` warns about its two claims once
+the real clock passes `claimed_at` plus 72h; tests pin `Now` instead.
+
+Expected HUD: decisions 6/15 resolved, 1 claimed, 3 blocked, 1 out of scope;
+implement 1/5 resolved, 1 claimed, 1 blocked, 1 out of scope; frontier 3 agents can
+take, 2 need you. Ticket 07 carries the PR chip, 09 is the frontier station.
+
+To write a new fixture: an effort dir with `map.md` + `tickets/NN-slug.md`.
+Ticket format: YAML frontmatter (`type:` research|prototype|grilling|task|implement,
+`blocked_by: [01]`, `claimed_by:` + `claimed_at:`, `undermined_by: [NN]`, `pr:` on
+implement only, `afk: true` on task only) then `# Title`, `## Question` (implement:
+`## What to build` with `- [ ]` criteria); a `## Answer` section with prose =
+resolved, `## Ruled out` = out_of_scope. Map format: `# Name`, `## Destination`,
+`## Decisions so far`, `## Implemented so far`, `## Out of scope` (links to
+`./tickets/NN-slug.md`), and fog under `## Not yet specified` as
+`- **Title.** prose <clears-with: NN>`. Sanity-check with
 `wayfinder-maps status <effort-dir>`.
 
 ## Launch
@@ -44,8 +57,9 @@ cd <scratch> && npm i playwright-core
 - Wait ~4s after goto: the constellation fades in over 2.2s (a plain
   `--screenshot --virtual-time-budget` capture shows HUD but NO stars — artifact,
   not a bug).
-- App state is inside ES modules (not on window). To click a specific star, find
-  it by pixel colour on the canvas (frontier glow is gold) — layout is
+- App state is inside ES modules, but the page can import them: in `page.evaluate`,
+  `await import("/js/state.js")` gives `S.byNum[n]` and `await import("/js/draw.js")`
+  gives `w2s(node)` for screen coordinates to `page.mouse.click`. Layout is
   deterministic (fixed PRNG seed), so positions repeat across runs.
 - Live-reload probe: append `## Answer\ntext` to a ticket while the map is open;
   the 1.5s poller updates the HUD counts in ~2-3s.
