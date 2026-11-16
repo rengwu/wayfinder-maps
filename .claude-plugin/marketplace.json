@@ -2,14 +2,14 @@
   "name": "wayfinder-maps",
   "description": "The wayfinder planning method as a Claude Code plugin: map big foggy efforts as investigation tickets under .plan/, one decision per session.",
   "owner": {
-    "name": "John Goh",
-    "url": "https://github.com/rengwu"
+    "name": "Ramses Kools",
+    "url": "https://github.com/RamsesKools"
   },
   "plugins": [
     {
       "name": "wayfinder-maps",
       "source": "./",
-      "description": "Plan huge, foggy efforts as a shared map of investigation tickets (.plan/), plus the skills the method leans on. Original skills by Matt Pocock (github.com/mattpocock/skills). The repo also ships the read-only map viewer binary."
+      "description": "Plan huge, foggy efforts as a shared map of investigation tickets (.plan/), plus the skills the method leans on. Original skills by Matt Pocock (github.com/mattpocock/skills). The repo also ships the read-only map viewer binary, originally by John Goh (github.com/rengwu)."
     }
   ]
 }

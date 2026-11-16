@@ -6,8 +6,9 @@ A read-only CLI and viewer for
 [wayfinder](https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder)
 maps — the markdown planning memory an agent leaves under `.plan/<effort>/` as it charts
 a large effort as a graph of investigation tickets. The wayfinder method and its skills
-were created by [Matt Pocock](https://github.com/mattpocock); this repo adapts them and
-adds the tooling.
+were created by [Matt Pocock](https://github.com/mattpocock). The CLI and viewer were
+created by John Goh in [rengwu/wayfinder-maps](https://github.com/rengwu/wayfinder-maps);
+this fork extends both so a map carries on into implementation.
 
 - **`wayfinder-maps status <dir>`** — what is resolved, what is in flight, and what is ready
   to claim (the _frontier_: open, unclaimed, every blocker resolved).
@@ -39,7 +40,7 @@ Fog: 5 patches, 1 anchored to a ticket
 ### Skills, as a Claude Code plugin
 
 ```
-/plugin marketplace add rengwu/wayfinder-maps
+/plugin marketplace add RamsesKools/wayfinder-maps
 /plugin install wayfinder-maps@wayfinder-maps
 ```
 
@@ -58,7 +59,7 @@ You may include any of the extras under [`skills/.optional/`](skills/.optional/)
 
 ### The binary
 
-- Download from [Releases](https://github.com/rengwu/wayfinder-maps/releases) — no Go
+- Download from [Releases](https://github.com/RamsesKools/wayfinder-maps/releases) — no Go
   toolchain needed, native window and folder dialog on all three platforms. macOS uses
   WKWebView (part of the OS); Windows uses WebView2 (ships with Windows 10/11); the
   Linux archive bundles a small helper that binds the system webkit —
@@ -67,7 +68,7 @@ You may include any of the extras under [`skills/.optional/`](skills/.optional/)
   installed at all, even headless. The macOS and Linux archives also carry two
   double-clickable launchers — `wayfinder-app` opens the native window, `wayfinder-web`
   starts the server and opens your browser — no terminal needed (`.command` on macOS).
-- `go install github.com/rengwu/wayfinder-maps/cmd/wayfinder-maps@latest`
+- `go install github.com/RamsesKools/wayfinder-maps/cmd/wayfinder-maps@latest`
 
 Skill and binary are independent — each just reads the on-disk contract.
 
