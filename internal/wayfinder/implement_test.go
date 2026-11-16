@@ -168,8 +168,8 @@ func TestLintPR(t *testing.T) {
 
 	t1 := tk(1, StatusOpen)
 	t1.PR = okPR
-	wantDiag(t, lintIt(okMap, t1), "only implement tickets ship a PR", Warn)
-	wantNoDiag(t, lintIt(okMap, implTk(1, StatusOpen, okPR)), "only implement tickets ship a PR")
+	wantDiag(t, lintIt(okMap, t1), "only implement tickets carry a PR", Warn)
+	wantNoDiag(t, lintIt(okMap, implTk(1, StatusOpen, okPR)), "only implement tickets carry a PR")
 }
 
 func TestLintAFK(t *testing.T) {
@@ -182,10 +182,12 @@ func TestLintAFK(t *testing.T) {
 	wantNoDiag(t, lintIt(okMap, t2), "derived from the type")
 }
 
-func TestLintResolvedImplementWithoutPR(t *testing.T) {
-	wantDiag(t, lintIt(implMap, implTk(1, StatusResolved, "")), "has no pr", Warn)
-	wantNoDiag(t, lintIt(implMap, implTk(1, StatusResolved, okPR)), "has no pr")
-	wantNoDiag(t, lintIt(okMap, implTk(1, StatusOpen, "")), "has no pr")
+func TestLintResolvedImplementPROptional(t *testing.T) {
+	for _, pr := range []string{"", okPR} {
+		if d := lintIt(implMap, implTk(1, StatusResolved, pr)); len(d) != 0 {
+			t.Errorf("pr=%q: want clean lint, got %v", pr, d)
+		}
+	}
 }
 
 func TestLintImplementIndexSections(t *testing.T) {

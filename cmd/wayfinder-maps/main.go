@@ -141,7 +141,7 @@ func status(w io.Writer, e *wayfinder.Effort) int {
 		for _, t := range shipping {
 			detail := "by " + claimant(t)
 			if t.Status == wayfinder.StatusResolved {
-				detail = "no pr"
+				detail = "shipped without a PR"
 				if t.PR != "" {
 					detail = t.PR
 				}

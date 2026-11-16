@@ -67,17 +67,14 @@ func Lint(e *Effort, opt Options) []Diagnostic {
 
 		if t.PR != "" {
 			if !singleHTTPURL(t.PR) {
-				add(Error, t.Path, 0, "pr %q is not a single http(s) URL: an implement ticket ships one PR", t.PR)
+				add(Error, t.Path, 0, "pr %q is not a single http(s) URL: pr is a single URL", t.PR)
 			}
 			if t.Type != TypeImplement {
-				add(Warn, t.Path, 0, "pr on a %s ticket: only implement tickets ship a PR", t.Type)
+				add(Warn, t.Path, 0, "pr on a %s ticket: only implement tickets carry a PR", t.Type)
 			}
 		}
 		if t.AFKSet && t.Type != TypeTask {
 			add(Warn, t.Path, 0, "afk on a %s ticket: it is derived from the type, only a task sets it", t.Type)
-		}
-		if t.Type == TypeImplement && t.Status == StatusResolved && t.PR == "" {
-			add(Warn, t.Path, 0, "resolved implement ticket has no pr: link the PR that shipped it")
 		}
 
 		// A stored status is a second copy of a fact the body already carries.
