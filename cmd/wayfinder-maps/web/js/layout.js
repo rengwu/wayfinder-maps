@@ -1,14 +1,21 @@
 // Deterministic rank-biased force layout, plus the camera fit for a fresh map.
+// With a flow direction the sim runs in a local frame (ranks along +x, columns
+// spread along y) and the result is rotated to the chosen compass point; with
+// no direction ranks are concentric rings around the centre.
 import {S} from "./state.js";
 import {clamp, mulberry32} from "./util.js";
+import {NONE, toWorld, toLocal} from "./direction.js";
 
-// The map reads left to right: a ticket sits in the column of its dependency depth.
+function radial() { return S.dir === NONE; }
+
+// A ticket sits in the column of its dependency depth.
 export function colX(rank) { return rank * 190; }
+export function ringR(rank) { return 130 + rank * 165; }
 
 // Implement tickets sit in a column past the rightmost decision column.
 // Maps without implement tickets never reach the belt branch, so their layout
 // is unchanged.
-var BELT_GAP = 190, BELT_STEP = 40;
+var BELT_GAP = 190, BELT_FRAC = 0.3, BELT_STEP = 40;
 var BELT_PULL = 0.2;
 var belt = false, decDepth = 0, beltR = 0;
 // With a belt, depth is counted within each kind: a decision that waits on an
@@ -29,35 +36,76 @@ function rankSpan() {
     return (memo[n.num] = d);
   }
   S.nodes.forEach(function(n) { n._depth = depth(n); if (n.kind !== "implement") decDepth = Math.max(decDepth, n._depth); });
-  beltR = colX(decDepth);
+  beltR = radial() ? ringR(decDepth) : colX(decDepth);
 }
-// The belt is a hard floor: an implement ticket left of its column is pushed
-// right to it and keeps its y, so edges only steer it up and down.
+// The belt is a hard floor. In a flow direction an implement ticket short of
+// its column is pushed forward to it and keeps its y, so edges only steer it
+// across; in the radial layout it is pushed out to its ring and keeps its angle.
 function clampBelt(list) {
   if (!belt) return;
+  if (radial()) {
+    beltR = ringR(decDepth);
+    S.nodes.forEach(function(n) { if (n.kind !== "implement") beltR = Math.max(beltR, Math.hypot(n.x, n.y)); });
+    list.forEach(function(n) {
+      if (n.kind !== "implement") return;
+      var d = Math.hypot(n.x, n.y) || 0.01, R = targetR(n);
+      if (d < R) { n.x *= R / d; n.y *= R / d; }
+    });
+    return;
+  }
   beltR = colX(decDepth);
   S.nodes.forEach(function(n) { if (n.kind !== "implement") beltR = Math.max(beltR, n.x); });
   list.forEach(function(n) { if (n.kind === "implement") n.x = Math.max(n.x, targetX(n)); });
 }
 function recentre() {
-  var cy = 0;
-  S.nodes.forEach(function(n) { cy += n.y; });
-  if (S.nodes.length) S.nodes.forEach(function(n) { n.y -= cy / S.nodes.length; });
+  if (radial()) {
+    if (!belt) return;
+    var cx = 0, cy = 0, k = 0;
+    S.nodes.forEach(function(n) { if (n.kind !== "implement") { cx += n.x; cy += n.y; k++; } });
+    if (k) S.nodes.forEach(function(n) { n.x -= cx / k; n.y -= cy / k; });
+    return;
+  }
+  var my = 0;
+  S.nodes.forEach(function(n) { my += n.y; });
+  if (S.nodes.length) S.nodes.forEach(function(n) { n.y -= my / S.nodes.length; });
 }
 export function targetX(n) {
   if (!belt) return colX(n.rank);
   if (n.kind !== "implement") return colX(n._depth);
   return beltR + BELT_GAP + n._depth * BELT_STEP;
 }
+function targetR(n) {
+  if (!belt) return ringR(n.rank);
+  if (n.kind !== "implement") return ringR(n._depth);
+  return beltR + Math.max(BELT_GAP, beltR * BELT_FRAC) + n._depth * BELT_STEP;
+}
+
+// The mode-specific bits of the sim: where a node starts, how it is drawn
+// toward its rank, and where a brand-new node first lands.
+function seed(n, rnd) {
+  if (radial()) {
+    var ang = rnd() * 6.2831853, R = targetR(n) + (rnd() - 0.5) * 70;
+    n.x = Math.cos(ang) * R; n.y = Math.sin(ang) * R;
+  } else {
+    n.x = targetX(n) + (rnd() - 0.5) * 70;
+    n.y = (rnd() - 0.5) * 80 * Math.sqrt(S.nodes.length);
+  }
+}
+// pull returns the force toward the rank target (column or ring) as [fx, fy].
+function pull(n, k, ky) {
+  if (radial()) {
+    var d = Math.hypot(n.x, n.y) || 0.01, f = (targetR(n) - d) * (belt && n.kind === "implement" ? BELT_PULL : k.ring);
+    return [n.x / d * f, n.y / d * f];
+  }
+  return [(targetX(n) - n.x) * (belt && n.kind === "implement" ? BELT_PULL : k.col), -n.y * ky];
+}
+function toFrame(fn) { S.nodes.forEach(function(n) { var p = fn(S.dir, n.x, n.y); n.x = p.x; n.y = p.y; }); }
 
 export function layout() {
   rankSpan();
   var rnd = mulberry32(1337);
-  S.nodes.forEach(function(n) {
-    n.x = targetX(n) + (rnd() - 0.5) * 70;
-    n.y = (rnd() - 0.5) * 80 * Math.sqrt(S.nodes.length);
-  });
-  var REP = 9000, SPRING = 0.02, REST = 150, COLPULL = 0.12, YPULL = 0.012;
+  S.nodes.forEach(function(n) { seed(n, rnd); });
+  var REP = 9000, SPRING = 0.02, REST = 150, YPULL = 0.012, K = {col: 0.12, ring: 0.05};
   for (var it = 0; it < 420; it++) {
     for (var i = 0; i < S.nodes.length; i++) {
       var a = S.nodes[i];
@@ -74,13 +122,11 @@ export function layout() {
       var f = (d - REST) * SPRING; var ux = dx / d, uy = dy / d;
       a.x += ux * f; a.y += uy * f; b.x -= ux * f; b.y -= uy * f;
     });
-    S.nodes.forEach(function(n) {
-      n.x += (targetX(n) - n.x) * (belt && n.kind === "implement" ? BELT_PULL : COLPULL);
-      n.y -= n.y * YPULL;
-    });
+    S.nodes.forEach(function(n) { var f = pull(n, K, YPULL); n.x += f[0]; n.y += f[1]; });
     recentre();
     clampBelt(S.nodes);
   }
+  toFrame(toWorld);
 }
 
 // relayoutWarm places a live update without disturbing the existing map. The
@@ -88,10 +134,13 @@ export function layout() {
 // the whole constellation; instead, nodes already on screen are PINNED at their
 // current position (px), and only freshly-added nodes are relaxed against them as
 // fixed anchors. Survivors move exactly zero; a new star flies in and settles.
+var WARM_K = {col: 0.05, ring: 0.05};
 export function relayoutWarm() {
   var fresh = [];
-  S.nodes.forEach(function(n) { if (n.px != null) { n.x = n.px; n.y = n.py; } else fresh.push(n); });
-  if (!fresh.length) return;
+  S.nodes.forEach(function(n) {
+    if (n.px != null) { var l = toLocal(S.dir, n.px, n.py); n.x = l.x; n.y = l.y; } else fresh.push(n);
+  });
+  if (!fresh.length) { toFrame(toWorld); return; }
   rankSpan();
   var rnd = mulberry32(97 + fresh.length);
   fresh.forEach(function(n) {
@@ -102,6 +151,7 @@ export function relayoutWarm() {
     });
     var ang = rnd() * 6.2831853;
     if (ax != null) { n.x = ax + Math.cos(ang) * 120; n.y = ay + Math.sin(ang) * 120; }
+    else if (radial()) { var R = targetR(n); n.x = Math.cos(ang) * R; n.y = Math.sin(ang) * R; }
     else { n.x = targetX(n); n.y = (rnd() - 0.5) * 300; }
   });
   for (var it = 0; it < 200; it++) {
@@ -109,11 +159,12 @@ export function relayoutWarm() {
       var n = fresh[k], fx = 0, fy = 0, i;
       for (i = 0; i < S.nodes.length; i++) { var o = S.nodes[i]; if (o === n) continue; var dx = n.x - o.x, dy = n.y - o.y, d2 = dx * dx + dy * dy || 0.01, d = Math.sqrt(d2), f = 9000 / d2; fx += dx / d * f; fy += dy / d * f; }
       for (i = 0; i < S.edges.length; i++) { var e = S.edges[i], o2 = null; if (e.from === n.num) o2 = S.byNum[e.to]; else if (e.to === n.num) o2 = S.byNum[e.from]; if (!o2) continue; var dx2 = o2.x - n.x, dy2 = o2.y - n.y, dd2 = Math.hypot(dx2, dy2) || 0.01, f2 = (dd2 - 150) * 0.02; fx += dx2 / dd2 * f2; fy += dy2 / dd2 * f2; }
-      fx += (targetX(n) - n.x) * (n.kind === "implement" ? BELT_PULL : 0.05); fy -= n.y * 0.012;
+      var pf = pull(n, WARM_K, 0.012); fx += pf[0]; fy += pf[1];
       n.x += fx; n.y += fy;
     }
     clampBelt(fresh);
   }
+  toFrame(toWorld);
 }
 
 export function fitCamera() {

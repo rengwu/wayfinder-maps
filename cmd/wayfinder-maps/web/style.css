@@ -105,6 +105,16 @@ a.c.pr:hover{background:rgba(95,209,192,.12);border-color:#5fd1c0}
 #backbtn:hover,#pullbtn:hover{color:#e6e9ef;border-color:#3a4356}
 #pullbtn[hidden]{display:none}
 #pullbtn:disabled{opacity:.5;cursor:default}
+/* Compass: a small 3x3 pad under the top-left chrome. Dim arrows, the chosen one glows. */
+#compass{position:fixed;top:58px;left:16px;z-index:7;display:none;grid-template-columns:repeat(3,24px);gap:2px;
+  padding:4px;background:rgba(14,18,26,.72);border:1px solid #262b36;border-radius:12px;backdrop-filter:blur(8px)}
+.cbtn{width:24px;height:24px;padding:0;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;border-radius:6px;color:#4b5261;cursor:pointer}
+.cbtn:hover{color:#b7bdc9;background:rgba(255,255,255,.05)}
+.cbtn .cglyph{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cbtn.cnone .cglyph{fill:currentColor;stroke:none}
+.cbtn.on{color:#ffe29a}
+.cbtn.on .cglyph{filter:drop-shadow(0 0 3px #ffd36e) drop-shadow(0 0 6px rgba(255,211,110,.6))}
 #projtag{font-size:12px;color:#8b93a3;max-width:32vw;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* splash + map list overlays, floating over the live starfield */

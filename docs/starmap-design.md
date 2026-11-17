@@ -25,13 +25,20 @@ same data, exactly as the first web UI was. Re-read-on-refresh stays. The
    build step, and a fundamentally 2D dependency graph gains only occlusion and
    depth-ambiguity from a third axis). Rejected enriched-SVG (no real camera).
 
-2. **Layout: force-directed, rank-biased, left to right.** A physics sim spreads
-   nodes into an organic constellation, but each node is soft-pulled toward a
-   column set by its dependency depth (`Layers()` rank) — roots sit left, deeper
-   tickets to the right. A virtual **start** on the left feeds every root ticket;
-   a virtual **goal** cloud on the right takes every dead-end ticket and holds the
-   fog, so nothing floats. Edges stay mostly monotonic so "what unblocks what" still reads. Rejected
-   strict concentric rings (too clockwork, unlike the reference images) and pure
+2. **Layout: force-directed, rank-biased, along a chosen direction.** A physics sim
+   spreads nodes into an organic constellation, but each node is soft-pulled toward a
+   column set by its dependency depth (`Layers()` rank). The sim always runs in a local
+   frame (ranks along +x, tickets of one rank spread along y) and the result is rotated
+   to the chosen compass point: E is left to right (default), S top to bottom (suits a
+   tall, narrow column), N bottom to top, W right to left, and the diagonals advance
+   ranks along the diagonal with each rank spread perpendicular to it. A virtual
+   **start** behind the map feeds every root ticket; a virtual **goal** cloud ahead of it
+   takes every dead-end ticket and holds the fog, so nothing floats. Edges stay mostly
+   monotonic so "what unblocks what" still reads. The compass's centre button picks
+   **no direction**: the original radial layout, ranks as concentric rings, the belt as
+   an outer ring and fog in the void past the rim, with no start or goal. The choice is
+   kept server-side in `settings.json` (`os.UserConfigDir()/wayfinder-maps/`), because
+   `localStorage` is per origin and app mode listens on a random port. Rejected pure
    force-directed (position would carry no meaning).
 
 3. **Motion: deterministic + idle drift.** Positions are seeded from the ticket
@@ -55,8 +62,9 @@ same data, exactly as the first web UI was. Re-read-on-refresh stays. The
    [the implement phase](implement-phase-design.md)):
    - implement tickets are **stations**: a lit hexagon in a teal frame instead of a
      round star, laid out in a column past the decision columns. The belt is a hard floor: after every relaxation step a
-     station left of its column is pushed right, keeping its y, so edges only steer
-     it up and down. The column sits 190 past the rightmost decision column.
+     station short of its column (in the flow direction) is pushed forward, keeping its
+     spread coordinate, so edges only steer it across. The column sits 190 past the
+     last decision column. With no direction it is an outer ring instead.
      Stations never draw smaller than at 0.5x zoom. Status colours, glow, pulse and rings keep their meaning.
    - a frontier ticket carries a small badge at its upper right: a robot when an
      agent can take it alone, a person when it needs the human.

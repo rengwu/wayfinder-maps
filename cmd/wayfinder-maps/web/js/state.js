@@ -18,6 +18,9 @@ export const S = {
   byNum: {},
   selected: null,
 
+  // Flow direction of the map: a compass point, or "none" for the radial layout.
+  dir: "E",
+
   clock: 0,
   lastClock: 0,
 
@@ -39,7 +42,8 @@ export const S = {
   // fog.js; also read by fitCamera so nebulae stay inside the fitted view.
   fogPts: [],
 
-  // Virtual start/goal {x,y,r}, placed by endpoints.js from the laid-out nodes.
+  // Virtual start/goal {x,y,r}, placed by endpoints.js from the laid-out nodes;
+  // both stay null in the radial layout.
   startPt: null,
   goalPt: null
 };

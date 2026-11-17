@@ -15,8 +15,28 @@ function sortNodes(g) { return (g.nodes || []).slice().sort(function(a, b) { ret
 // scratch, then fit the camera. Used when a map is first opened or switched to.
 function applyGraph(g) {
   S.graph = g; S.nodes = sortNodes(g); S.edges = g.edges || []; S.byNum = {}; S.nodes.forEach(function(n) { S.byNum[n.num] = n; });
+  layoutFresh(); buildHud();
+}
+
+// layoutFresh lays the loaded nodes out from scratch in the current direction,
+// snaps them there and fits the camera.
+function layoutFresh() {
   layout(); S.nodes.forEach(function(n) { n.px = n.x; n.py = n.y; n._x = n.x; n._y = n.y; }); setupEndpoints(); setupFog(); fitCamera();
-  S.goal.x = S.cam.x; S.goal.y = S.cam.y; S.goal.s = S.cam.s; buildHud();
+  S.goal.x = S.cam.x; S.goal.y = S.cam.y; S.goal.s = S.cam.s;
+}
+
+// setDirection switches the flow direction: the open map dissolves, re-lays
+// itself out and fades back in. The choice is saved server-side so it survives
+// restarts, including app mode's random port.
+export function setDirection(dir) {
+  if (dir === S.dir) return;
+  S.dir = dir;
+  fetch("/api/settings", {method: "POST", headers: {"X-Wayfinder": "1"}, body: JSON.stringify({direction: dir})}).catch(function() {});
+  if (!S.currentEffort || !S.nodes.length) return;
+  startFade(S.mapAlpha, 0, 0.25, function() {
+    layoutFresh();
+    startFade(0, 1, 0.45);
+  });
 }
 
 // updateGraph folds a freshly-fetched graph into the live scene: surviving nodes
@@ -119,6 +139,7 @@ export function leaveMap(next) {
   S.currentEffort = null; // stop the poller applying mid-dissolve
   document.getElementById("hud").style.display = "none";
   document.getElementById("topleft").style.display = "none";
+  document.getElementById("compass").style.display = "none";
   document.getElementById("hint").style.display = "none";
   closePanel();
   if (S.screen !== "map" || !S.nodes.length) { unmountMap(); next(); return; }
@@ -132,6 +153,7 @@ function setScreen(s) {
   document.getElementById("maplist").style.display = s === "maplist" ? "flex" : "none";
   document.getElementById("hud").style.display = s === "map" ? "flex" : "none";
   document.getElementById("topleft").style.display = s === "map" ? "flex" : "none";
+  document.getElementById("compass").style.display = s === "map" ? "grid" : "none";
   document.getElementById("hint").style.display = s === "map" ? "block" : "none";
   if (s !== "map") closePanel();
 }

@@ -114,6 +114,29 @@ func newServer(initial string) http.Handler {
 		writeJSON(w, loadRecents())
 	})
 
+	// Viewer preferences (map flow direction). POST with a custom header, like
+	// the other writes, so a foreign page cannot change them.
+	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			writeJSON(w, loadSettings())
+			return
+		}
+		if r.Method != http.MethodPost || r.Header.Get("X-Wayfinder") == "" {
+			http.Error(w, "POST with X-Wayfinder required", http.StatusBadRequest)
+			return
+		}
+		var s settings
+		if err := json.NewDecoder(io.LimitReader(r.Body, 2048)).Decode(&s); err != nil || !validDirection(s.Direction) {
+			http.Error(w, "a direction (N, NE, E, SE, S, SW, W, NW or none) is required", http.StatusBadRequest)
+			return
+		}
+		if err := saveSettings(s); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	// Maps in a chosen project; opening one records it in recents.
 	mux.HandleFunc("/api/maps", func(w http.ResponseWriter, r *http.Request) {
 		project := r.URL.Query().Get("project")

@@ -169,3 +169,70 @@ func TestPullEndpoint(t *testing.T) {
 		t.Errorf("source = %s", rec.Body)
 	}
 }
+
+func TestSettingsEndpoint(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("HOME", cfg)
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("AppData", cfg)
+	h := newServer("")
+
+	get := func() (int, string) {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/settings", nil))
+		return rec.Code, strings.TrimSpace(rec.Body.String())
+	}
+	post := func(body string, hdr bool) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/settings", strings.NewReader(body))
+		if hdr {
+			req.Header.Set("X-Wayfinder", "1")
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if c, b := get(); c != http.StatusOK || b != `{"direction":"E"}` {
+		t.Errorf("default = %d %s", c, b)
+	}
+	for _, d := range []string{"N", "NE", "E", "SE", "S", "SW", "W", "NW", "none"} {
+		if c := post(`{"direction":"`+d+`"}`, true); c != http.StatusNoContent {
+			t.Errorf("post %s = %d", d, c)
+		}
+		if _, b := get(); b != `{"direction":"`+d+`"}` {
+			t.Errorf("after post %s: %s", d, b)
+		}
+	}
+
+	// A fresh server reads the choice back from disk: it survives a restart.
+	if _, b := func() (int, string) {
+		rec := httptest.NewRecorder()
+		newServer("").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/settings", nil))
+		return rec.Code, strings.TrimSpace(rec.Body.String())
+	}(); b != `{"direction":"none"}` {
+		t.Errorf("after restart: %s", b)
+	}
+
+	for name, c := range map[string]int{
+		"no header":     post(`{"direction":"N"}`, false),
+		"unknown":       post(`{"direction":"up"}`, true),
+		"empty":         post(`{"direction":""}`, true),
+		"lowercase":     post(`{"direction":"se"}`, true),
+		"not json":      post(`nope`, true),
+		"missing field": post(`{}`, true),
+	} {
+		if c != http.StatusBadRequest {
+			t.Errorf("%s = %d, want 400", name, c)
+		}
+	}
+	if _, b := get(); b != `{"direction":"none"}` {
+		t.Errorf("rejected posts changed the setting: %s", b)
+	}
+
+	// A corrupt or invalid file falls back to the default.
+	f, _ := settingsFile()
+	os.WriteFile(f, []byte(`{"direction":"sideways"}`), 0o644)
+	if _, b := get(); b != `{"direction":"E"}` {
+		t.Errorf("invalid file: %s", b)
+	}
+}

@@ -1,18 +1,34 @@
 // Fog patches (open questions not yet sharp enough to ticket) sit as faint
-// nebulae inside the goal cloud, each tethered to the ticket that will clear
-// it. Positions are deterministic: spread by the golden angle.
+// nebulae, each tethered to the ticket that will clear it. Positions are
+// deterministic. With a flow direction they sit inside the goal cloud, spread
+// by the golden angle. In the radial layout they sit in the void past the
+// outermost ring: an anchored patch out past its ticket's angle, an unanchored
+// one spread by the golden angle.
 import {S, ctx} from "./state.js";
 import {clamp, mulberry32} from "./util.js";
 
 export function setupFog() {
   S.fogPts = [];
+  if (!S.graph || !S.graph.fog || !S.graph.fog.length) return;
   var g = S.goalPt;
-  if (!g || !S.graph || !S.graph.fog || !S.graph.fog.length) return;
+  if (!g) { setupRimFog(); return; }
   var rnd = mulberry32(4242), n = S.graph.fog.length;
   S.graph.fog.forEach(function(f, i) {
     var anc = f.clearsWith ? S.byNum[f.clearsWith] : null;
     var ang = i * 2.399963 + rnd() * 0.4, rad = n === 1 ? 0 : g.r * 0.55 * Math.sqrt((i + 0.5) / n);
     S.fogPts.push({title: f.title, anchor: anc || null, x: g.x + Math.cos(ang) * rad, y: g.y + Math.sin(ang) * rad});
+  });
+}
+
+function setupRimFog() {
+  if (!S.nodes.length) return;
+  var cx = 0, cy = 0; S.nodes.forEach(function(n) { cx += n.x; cy += n.y; }); cx /= S.nodes.length; cy /= S.nodes.length;
+  var rim = 0; S.nodes.forEach(function(n) { rim = Math.max(rim, Math.hypot(n.x - cx, n.y - cy)); }); rim += 130;
+  var rnd = mulberry32(4242);
+  S.graph.fog.forEach(function(f, i) {
+    var anc = f.clearsWith ? S.byNum[f.clearsWith] : null;
+    var ang = anc ? Math.atan2(anc.y - cy, anc.x - cx) + (rnd() - 0.5) * 0.3 : (i * 2.399963 + rnd() * 0.4);
+    S.fogPts.push({title: f.title, anchor: anc || null, x: cx + Math.cos(ang) * rim, y: cy + Math.sin(ang) * rim});
   });
 }
 

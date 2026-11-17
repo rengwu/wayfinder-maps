@@ -1,23 +1,18 @@
-// The virtual start (left) and goal (right) of the map. Start feeds every root
-// ticket; the goal is an abstract cloud that every dead-end ticket flows into
-// and that holds the fog. Neither is a ticket, so neither is selectable.
+// The virtual start (behind the map) and goal (ahead of it) along the flow
+// direction. Start feeds every root ticket; the goal is an abstract cloud that
+// every dead-end ticket flows into and that holds the fog. Neither is a ticket,
+// so neither is selectable. The radial layout has neither.
 import {S, ctx} from "./state.js";
 import {clamp, hexA} from "./util.js";
-import {colX} from "./layout.js";
-
-var GAP = 190;
+import {NONE, placeEndpoints} from "./direction.js";
 
 export function setupEndpoints() {
   S.startPt = S.goalPt = null;
-  if (!S.nodes.length) return;
-  var minx = 1e9, maxx = -1e9, ry = 0, rn = 0, nf = (S.graph && S.graph.fog ? S.graph.fog.length : 0);
-  S.nodes.forEach(function(n) {
-    minx = Math.min(minx, n.x); maxx = Math.max(maxx, n.x);
-    if (!(n.blockers || []).length) { ry += n.y; rn++; }
-  });
-  var R = clamp(130 + 24 * nf, 130, 260);
-  S.startPt = {x: Math.min(minx, colX(0)) - GAP, y: rn ? ry / rn : 0, r: 22};
-  S.goalPt = {x: maxx + GAP + R * 0.6, y: 0, r: R};
+  if (!S.nodes.length || S.dir === NONE) return;
+  var nf = (S.graph && S.graph.fog ? S.graph.fog.length : 0);
+  var pts = S.nodes.map(function(n) { return {x: n.x, y: n.y, root: !(n.blockers || []).length}; });
+  var e = placeEndpoints(S.dir, pts, nf);
+  S.startPt = e.start; S.goalPt = e.goal;
 }
 
 function curve(ax, ay, bx, by) {
